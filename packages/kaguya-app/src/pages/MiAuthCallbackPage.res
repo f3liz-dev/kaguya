@@ -9,8 +9,9 @@ let getSearchParams = (): URLSearchParams.t => {
 @jsx.component
 let make = () => {
   let (status, setStatus) = PreactHooks.useState(() => "checking")
+  let (errorMessage, setErrorMessage) = PreactHooks.useState(() => None)
   let (retryCount, setRetryCount) = PreactHooks.useState(() => 0)
-  let maxRetries = 5 // Only retry 5 times for transient errors (5 seconds)
+  let maxRetries = 3 // Only retry 3 times before showing error
 
   // Check MiAuth session when component mounts or retryCount changes
   PreactHooks.useEffect1(() => {
@@ -49,7 +50,7 @@ let make = () => {
           | Error(err) => {
               Console.error2("MiAuthCallbackPage: MiAuth check failed:", err)
 
-              // Check if this is a permanent error (missing session data)
+              // Extract error message
               let errorMsg = switch err {
               | AppState.InvalidCredentials => "Invalid credentials"
               | AppState.NetworkError(msg) => msg
@@ -62,6 +63,7 @@ let make = () => {
                 // Permanent error: redirect to login immediately with hard redirect
                 Console.log("MiAuthCallbackPage: Permanent error, hard redirecting to login...")
                 setStatus(_ => "permanent_error")
+                setErrorMessage(_ => Some(errorMsg))
                 // Set the error state in AppState and hard redirect
                 PreactSignals.setValue(AppState.authState, AppState.LoginFailed(err))
                 %raw(`window.location.href = "/"`)
@@ -76,10 +78,15 @@ let make = () => {
                     }
                   }, 1000)
                 }
-              } // Max retries exceeded: show error
+              } // Max retries exceeded: redirect to login with error
               else if isMounted.contents {
-                Console.log("MiAuthCallbackPage: Max retries exceeded")
+                Console.log("MiAuthCallbackPage: Max retries exceeded, redirecting to login...")
                 setStatus(_ => "error")
+                setErrorMessage(_ => Some(errorMsg))
+                // Wait 2 seconds to show error, then redirect
+                let _ = SetTimeout.make(() => {
+                  %raw(`window.location.href = "/"`)
+                }, 2000)
               }
             }
           }
@@ -101,11 +108,6 @@ let make = () => {
       },
     )
   }, [retryCount])
-
-  let handleRetry = (_: JsxEvent.Mouse.t) => {
-    setStatus(_ => "checking")
-    setRetryCount(_ => 0)
-  }
 
   <main className="container">
     <article className="login-card">
@@ -144,16 +146,33 @@ let make = () => {
         </div>
       | "error" =>
         <div className="error-message">
-          <p> {Preact.string("Authorization failed. Please try again.")} </p>
+          <p> {Preact.string("Authorization failed after 3 attempts.")} </p>
+          {switch errorMessage {
+          | Some(msg) =>
+            <details style={Style.make(~marginTop="0.5rem", ())}>
+              <summary style={Style.make(~fontSize="0.75rem", ~color="#991b1b", ~cursor="pointer", ())}>
+                {Preact.string("Show error details")}
+              </summary>
+              <pre
+                style={Style.make(
+                  ~fontSize="0.65rem",
+                  ~marginTop="0.5rem",
+                  ~padding="0.5rem",
+                  ~backgroundColor="#fee2e2",
+                  ~borderRadius="4px",
+                  ~overflow="auto",
+                  ~maxWidth="100%",
+                  (),
+                )}
+              >
+                {Preact.string(msg)}
+              </pre>
+            </details>
+          | None => Preact.null
+          }}
           <p style={Style.make(~fontSize="0.75rem", ~marginTop="0.5rem", ~color="#991b1b", ())}>
-            {Preact.string("Make sure you authorized the app and try logging in again.")}
+            {Preact.string("Redirecting to login page in 2 seconds...")}
           </p>
-          <div style={Style.make(~marginTop="1rem", ~display="flex", ~gap="0.5rem", ())}>
-            <button onClick={handleRetry} className="secondary">
-              {Preact.string("Try Again")}
-            </button>
-            <a href="/" className="secondary outline"> {Preact.string("Return to login")} </a>
-          </div>
         </div>
       | _ => Preact.null
       }}
