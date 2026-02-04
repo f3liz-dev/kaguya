@@ -90,12 +90,11 @@ let request = async (
 
   try {
     // Use the generated fetch function
-    let result = await client.fetch(
-      ~url=endpoint,
-      ~method_="POST",
-      ~body=?params,
-      ()
-    )
+    let result = await client.fetch({
+      url: endpoint,
+      method_: "POST",
+      body: params
+    })
     let duration = Date.now() -. startTime
     trackApiCall(client, ~endpoint, ~durationMs=duration, ~success=true)
     result

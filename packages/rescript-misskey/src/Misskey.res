@@ -24,7 +24,6 @@
 type t = {
   origin: string,
   token: option<string>,
-  apiClient: MisskeyJS_Fetch.fetchFn,
   mutable streamClient: option<StreamClient.t>,
 }
 
@@ -34,16 +33,18 @@ type t = {
 ///   let client = Misskey.connect("https://misskey.io")
 ///   let authClient = Misskey.connect("https://misskey.io", ~token="abc123")
 let connect = (origin: string, ~token: option<string>=?): t => {
-  let apiClient = switch token {
-  | Some(t) => MisskeyJS_Fetch.make(~origin, ~credential=t)
-  | None => MisskeyJS_Fetch.make(~origin)
-  }
-  
   {
     origin,
     token,
-    apiClient,
     streamClient: None,
+  }
+}
+
+// Internal helper to create apiClient on-demand
+let makeApiClient = (client: t) => {
+  switch client.token {
+  | Some(t) => MisskeyJS_Fetch.make(~origin=client.origin, ~credential=t)
+  | None => MisskeyJS_Fetch.make(~origin=client.origin)
   }
 }
 
@@ -85,8 +86,8 @@ module Notes = {
     replyId->Option.forEach(v => params->Dict.set("replyId", v->JSON.Encode.string))
     renoteId->Option.forEach(v => params->Dict.set("renoteId", v->JSON.Encode.string))
     
-    let apiClient = client.apiClient
-    apiClient(~url="notes/create", ~method_="POST", ~body=params->JSON.Encode.object, ())
+    let apiClient = makeApiClient(client)
+    apiClient({url: "notes/create", method_: "POST", body: Some(params->JSON.Encode.object)})
     ->Promise.then(json => Ok(json)->Promise.resolve)
     ->Promise.catch(_err => Error(%raw(`String(_err)`))->Promise.resolve)
   }
@@ -99,8 +100,8 @@ module Notes = {
     let params = Dict.make()
     params->Dict.set("noteId", noteId->JSON.Encode.string)
     
-    let apiClient = client.apiClient
-    apiClient(~url="notes/delete", ~method_="POST", ~body=params->JSON.Encode.object, ())
+    let apiClient = makeApiClient(client)
+    apiClient({url: "notes/delete", method_: "POST", body: Some(params->JSON.Encode.object)})
     ->Promise.then(json => Ok(json)->Promise.resolve)
     ->Promise.catch(_err => Error(%raw(`String(_err)`))->Promise.resolve)
   }
@@ -157,8 +158,8 @@ module Notes = {
       })
     })
     
-    let apiClient = client.apiClient
-    apiClient(~url=endpoint, ~method_="POST", ~body=params->JSON.Encode.object, ())
+    let apiClient = makeApiClient(client)
+    apiClient({url: endpoint, method_: "POST", body: Some(params->JSON.Encode.object)})
     ->Promise.then(json => Ok(json)->Promise.resolve)
     ->Promise.catch(_err => Error(%raw(`String(_err)`))->Promise.resolve)
   }
@@ -175,8 +176,8 @@ module Notes = {
     params->Dict.set("noteId", noteId->JSON.Encode.string)
     params->Dict.set("reaction", reaction->JSON.Encode.string)
     
-    let apiClient = client.apiClient
-    apiClient(~url="notes/reactions/create", ~method_="POST", ~body=params->JSON.Encode.object, ())
+    let apiClient = makeApiClient(client)
+    apiClient({url: "notes/reactions/create", method_: "POST", body: Some(params->JSON.Encode.object)})
     ->Promise.then(json => Ok(json)->Promise.resolve)
     ->Promise.catch(_err => Error(%raw(`String(_err)`))->Promise.resolve)
   }
@@ -189,8 +190,8 @@ module Notes = {
     let params = Dict.make()
     params->Dict.set("noteId", noteId->JSON.Encode.string)
     
-    let apiClient = client.apiClient
-    apiClient(~url="notes/reactions/delete", ~method_="POST", ~body=params->JSON.Encode.object, ())
+    let apiClient = makeApiClient(client)
+    apiClient({url: "notes/reactions/delete", method_: "POST", body: Some(params->JSON.Encode.object)})
     ->Promise.then(json => Ok(json)->Promise.resolve)
     ->Promise.catch(_err => Error(%raw(`String(_err)`))->Promise.resolve)
   }
@@ -325,7 +326,8 @@ let request = (
   ~params: JSON.t=JSON.Encode.object(Dict.make()),
   (),
 ): promise<result<JSON.t, string>> => {
-  client.apiClient(~url=endpoint, ~method_="POST", ~body=params, ())
+  let apiClient = makeApiClient(client)
+  apiClient({url: endpoint, method_: "POST", body: Some(params)})
   ->Promise.then(json => Ok(json)->Promise.resolve)
   ->Promise.catch(_err => Error(%raw(`String(_err)`))->Promise.resolve)
 }

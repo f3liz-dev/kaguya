@@ -7,24 +7,16 @@ type fetchOptions = {
   body: option<JSON.t>,
 }
 
-type fetchFn = @uncurry (
-  ~url: string,
-  ~method_: string,
-  ~body: JSON.t=?,
-  unit,
-) => promise<JSON.t>
+type fetchFn = fetchOptions => promise<JSON.t>
 
 // Create a fetch function for a Misskey instance
 let make = (~origin: string, ~credential: option<string>=?): fetchFn => {
   let baseUrl = origin->String.endsWith("/") ? origin : origin ++ "/"
   let apiBase = baseUrl ++ "api"
 
-  (
-    ~url: string,
-    ~method_: string,
-    ~body: option<JSON.t>=?,
-    (),
-  ) => {
+  (options: fetchOptions) => {
+    let {url, method_, body} = options
+    
     // Remove leading slash if present
     let endpoint = url->String.startsWith("/") 
       ? url->String.slice(~start=1, ~end=String.length(url)) 
