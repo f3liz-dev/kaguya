@@ -11,138 +11,18 @@ let make = (
   ~myReaction: option<string>,
   ~reactionAcceptance: option<reactionAcceptance>,
 ) => {
-  let (isLoading, setIsLoading) = PreactHooks.useState(() => false)
-  let (showEmojiPicker, setShowEmojiPicker) = PreactHooks.useState(() => false)
-  let (optimisticReactions, setOptimisticReactions) = PreactHooks.useState(() => reactions)
-  let (optimisticMyReaction, setOptimisticMyReaction) = PreactHooks.useState(() => myReaction)
-
-  // Sync props with state when they change
-  PreactHooks.useEffect2(() => {
-    setOptimisticReactions(_ => reactions)
-    None
-  }, (reactions, noteId))
-
-  PreactHooks.useEffect2(() => {
-    setOptimisticMyReaction(_ => myReaction)
-    None
-  }, (myReaction, noteId))
-
-  let handleReactionClick = async (reaction: string) => {
-    let client = PreactSignals.value(AppState.client)
-    let isLoggedIn = PreactSignals.value(AppState.isLoggedIn)
-    let isReadOnly = AppState.isReadOnlyMode()
-
-    if isReadOnly {
-      ToastState.showError("Cannot react: You're in read-only mode")
-      ()
-    } else if isLoading || !isLoggedIn {
-      ()
-    } else {
-      switch client {
-      | None => ()
-      | Some(c) => {
-          setIsLoading(_ => true)
-
-          // Determine action: if clicking current reaction, remove it; otherwise add new
-          let shouldRemove = optimisticMyReaction->Option.getOr("") == reaction
-
-          // Optimistic update
-          if shouldRemove {
-            setOptimisticMyReaction(_ => None)
-            setOptimisticReactions(prev => {
-              let newDict = Dict.make()
-              prev
-              ->Dict.toArray
-              ->Array.forEach(((r, count)) => {
-                if r == reaction {
-                  let newCount = count - 1
-                  if newCount > 0 {
-                    newDict->Dict.set(r, newCount)
-                  }
-                } else {
-                  newDict->Dict.set(r, count)
-                }
-              })
-              newDict
-            })
-
-            // API call
-            let result = await c->Misskey.Notes.unreact(noteId)
-
-            switch result {
-            | Ok(_) => // Success - optimistic update was correct
-              setIsLoading(_ => false)
-            | Error(msg) => {
-                ToastState.showError("Failed to remove reaction: " ++ msg)
-                // Revert optimistic update
-                setOptimisticMyReaction(_ => myReaction)
-                setOptimisticReactions(_ => reactions)
-                setIsLoading(_ => false)
-              }
-            }
-          } else {
-            // Add/change reaction
-            let oldReaction = optimisticMyReaction
-            setOptimisticMyReaction(_ => Some(reaction))
-            setOptimisticReactions(prev => {
-              let newDict = Dict.make()
-              prev
-              ->Dict.toArray
-              ->Array.forEach(((r, count)) => {
-                if r == reaction {
-                  newDict->Dict.set(r, count + 1)
-                } else if Some(r) == oldReaction {
-                  // Decrement old reaction if we had one
-                  let newCount = count - 1
-                  if newCount > 0 {
-                    newDict->Dict.set(r, newCount)
-                  }
-                } else {
-                  newDict->Dict.set(r, count)
-                }
-              })
-
-              // If reaction didn't exist, add it
-              if prev->Dict.get(reaction)->Option.isNone {
-                newDict->Dict.set(reaction, 1)
-              }
-              newDict
-            })
-
-            // API call
-            let result = await c->Misskey.Notes.react(noteId, reaction)
-
-            switch result {
-            | Ok(_) => // Success
-              setIsLoading(_ => false)
-            | Error(msg) => {
-                ToastState.showError("Failed to add reaction: " ++ msg)
-                // Revert optimistic update
-                setOptimisticMyReaction(_ => myReaction)
-                setOptimisticReactions(_ => reactions)
-                setIsLoading(_ => false)
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  let handleEmojiSelect = (emoji: string) => {
-    let _ = handleReactionClick(emoji)
-  }
-
-  let reactionArray =
-    optimisticReactions
-    ->Dict.toArray
-    ->Array.toSorted(((_, countA), (_, countB)) => {
-      // Sort by count descending
-      Float.fromInt(countB) -. Float.fromInt(countA)
-    })
-
-  let isLoggedIn = PreactSignals.value(AppState.isLoggedIn)
-  let isReadOnly = AppState.isReadOnlyMode()
+  let {
+    isLoading,
+    showEmojiPicker,
+    reactionArray,
+    optimisticMyReaction,
+    isLoggedIn,
+    isReadOnly,
+    handleReactionClick,
+    handleEmojiSelect,
+    openEmojiPicker,
+    closeEmojiPicker,
+  } = ReactionBarHook.useReactionBar(~noteId, ~reactions, ~myReaction)
 
   // Don't render if no reactions and not logged in
   if reactionArray->Array.length == 0 && !isLoggedIn {
@@ -211,7 +91,7 @@ let make = (
           }}
           onClick={_ => {
             if isLoggedIn && !isReadOnly {
-              let _ = handleReactionClick(reaction)
+              handleReactionClick(reaction)
             }
           }}
           disabled={isLoading || isReadOnly}
@@ -267,7 +147,7 @@ let make = (
             let target = JsxEvent.Mouse.currentTarget(e)
             HtmlElement.setBackground(target, "var(--pico-card-border-color)")
           }}
-          onClick={_ => setShowEmojiPicker(_ => true)}
+          onClick={_ => openEmojiPicker()}
           disabled={isLoading}
           title="Add reaction"
           ariaLabel="Add reaction"
@@ -284,12 +164,12 @@ let make = (
         | Some(acceptance) =>
           <EmojiPicker
             onSelect={handleEmojiSelect}
-            onClose={() => setShowEmojiPicker(_ => false)}
+            onClose={closeEmojiPicker}
             reactionAcceptance={acceptance}
           />
         | None =>
           <EmojiPicker
-            onSelect={handleEmojiSelect} onClose={() => setShowEmojiPicker(_ => false)}
+            onSelect={handleEmojiSelect} onClose={closeEmojiPicker}
           />
         }
       } else {

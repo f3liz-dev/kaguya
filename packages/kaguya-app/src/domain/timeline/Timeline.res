@@ -47,26 +47,28 @@ let make = (~timelineType: Misskey.Stream.timelineType, ~name: string="") => {
   let makeStreamCallback = () => {
     newNote => {
       let decodedNote = NoteDecoder.decode(newNote)
-      let _ = (async () => {
-        // Prefetch images and wait until cached before rendering
-        switch decodedNote {
-        | Some(noteData) => await NoteOps.prefetchImagesAsync(noteData)
-        | None => ()
-        }
-        setState(prev => {
-          switch (prev, decodedNote) {
-          | (Loaded(data), Some(noteData)) => {
-              let shouldAdd = !noteExists(data.notes, noteData.id)
-              if shouldAdd {
-                Loaded({...data, notes: [noteData]->Array.concat(data.notes)})
-              } else {
-                prev
-              }
-            }
-          | _ => prev
+      let _ = (
+        async () => {
+          // Prefetch images and wait until cached before rendering
+          switch decodedNote {
+          | Some(noteData) => await NoteOps.prefetchImagesAsync(noteData)
+          | None => ()
           }
-        })
-      })()
+          setState(prev => {
+            switch (prev, decodedNote) {
+            | (Loaded(data), Some(noteData)) => {
+                let shouldAdd = !noteExists(data.notes, noteData.id)
+                if shouldAdd {
+                  Loaded({...data, notes: [noteData]->Array.concat(data.notes)})
+                } else {
+                  prev
+                }
+              }
+            | _ => prev
+            }
+          })
+        }
+      )()
     }
   }
 
@@ -74,7 +76,7 @@ let make = (~timelineType: Misskey.Stream.timelineType, ~name: string="") => {
   PreactHooks.useEffect2(() => {
     // Read the current client value from the signal
     let clientOpt = PreactSignals.value(AppState.client)
-    
+
     // Cancellation token: set to true when this effect is cleaned up.
     // Prevents a stale async fetch from overwriting state after tab switch.
     let cancelled = ref(false)
@@ -88,49 +90,47 @@ let make = (~timelineType: Misskey.Stream.timelineType, ~name: string="") => {
           | #home => PreactSignals.value(TimelineStore.homeTimelineInitial)
           | _ => None
           }
-          
-          switch cachedTimelineOpt {
-          | Some(rawJson) => {
-              if cancelled.contents { () } else {
-                // Use cached data and setup stream subscription
-                let notes = NoteDecoder.decodeManyFromJson(rawJson)
-                let lastPostId = getLastNoteId(notes)
-                
-                // Prefetch image domains from cached notes
-                NetworkOptimizer.extractImageDomainsFromNotes([rawJson])
-                
-                setState(_ => Loaded({
-                  notes,
-                  lastPostId,
-                  hasMore: Array.length(notes) >= 20,
-                  isLoadingMore: false,
-                  isStreaming: false,
-                }))
 
-                // Start streaming subscription after loading cached data
-                let subscription = client->Misskey.Stream.timeline(timelineType, makeStreamCallback())
-                subscriptionRef.current = Some(subscription)
-                setState(prev => {
-                  switch prev {
-                  | Loaded(data) => Loaded({...data, isStreaming: true})
-                  | _ => prev
-                  }
-                })
-              }
+          switch cachedTimelineOpt {
+          | Some(rawJson) =>
+            if cancelled.contents {
+              ()
+            } else {
+              // Use cached data and setup stream subscription
+              let notes = NoteDecoder.decodeManyFromJson(rawJson)
+              let lastPostId = getLastNoteId(notes)
+
+              // Prefetch image domains from cached notes
+              NetworkOptimizer.extractImageDomainsFromNotes([rawJson])
+
+              setState(_ => Loaded({
+                notes,
+                lastPostId,
+                hasMore: Array.length(notes) >= 20,
+                isLoadingMore: false,
+                isStreaming: false,
+              }))
+
+              // Start streaming subscription after loading cached data
+              let subscription = client->Misskey.Stream.timeline(timelineType, makeStreamCallback())
+              subscriptionRef.current = Some(subscription)
+              setState(prev => {
+                switch prev {
+                | Loaded(data) => Loaded({...data, isStreaming: true})
+                | _ => prev
+                }
+              })
             }
           | None => {
               // No cache, fetch from API and setup stream in parallel
-              let notesPromise = client->Misskey.Notes.fetch(
-                timelineType,
-                ~limit=20,
-                (),
-              )
-              
+              let notesPromise = client->Misskey.Notes.fetch(timelineType, ~limit=20, ())
+
               if !cancelled.contents {
                 // Start stream subscription immediately (doesn't await the fetch)
-                let subscription = client->Misskey.Stream.timeline(timelineType, makeStreamCallback())
+                let subscription =
+                  client->Misskey.Stream.timeline(timelineType, makeStreamCallback())
                 subscriptionRef.current = Some(subscription)
-                
+
                 // Now await the notes fetch
                 let result = await notesPromise
 
@@ -139,10 +139,10 @@ let make = (~timelineType: Misskey.Stream.timelineType, ~name: string="") => {
                   | Ok(rawJson) => {
                       let notes = NoteDecoder.decodeManyFromJson(rawJson)
                       let lastPostId = getLastNoteId(notes)
-                      
+
                       // Prefetch image domains from initial notes
                       NetworkOptimizer.extractImageDomainsFromNotes([rawJson])
-                      
+
                       setState(_ => Loaded({
                         notes,
                         lastPostId,
@@ -150,7 +150,6 @@ let make = (~timelineType: Misskey.Stream.timelineType, ~name: string="") => {
                         isLoadingMore: false,
                         isStreaming: true, // Already subscribed
                       }))
-
                     }
                   | Error(msg) => {
                       // If fetch failed, clean up the subscription
@@ -176,13 +175,15 @@ let make = (~timelineType: Misskey.Stream.timelineType, ~name: string="") => {
     let _ = fetchTimeline()
 
     // Cleanup: cancel pending fetch, dispose subscription when timeline changes or unmounts
-    Some(() => {
-      cancelled := true
-      subscriptionRef.current->Option.forEach(sub => {
-        sub.dispose()
-      })
-      subscriptionRef.current = None
-    })
+    Some(
+      () => {
+        cancelled := true
+        subscriptionRef.current->Option.forEach(sub => {
+          sub.dispose()
+        })
+        subscriptionRef.current = None
+      },
+    )
   }, (PreactSignals.value(AppState.client), timelineType))
 
   // Catch up on missed notes and re-establish stream when the page becomes visible again
@@ -199,43 +200,51 @@ let make = (~timelineType: Misskey.Stream.timelineType, ~name: string="") => {
             subscriptionRef.current->Option.forEach(sub => sub.dispose())
             let subscription = client->Misskey.Stream.timeline(tt, makeStreamCallback())
             subscriptionRef.current = Some(subscription)
-            setState(prev => switch prev {
-            | Loaded(d) => Loaded({...d, isStreaming: true})
-            | _ => prev
-            })
+            setState(prev =>
+              switch prev {
+              | Loaded(d) => Loaded({...d, isStreaming: true})
+              | _ => prev
+              }
+            )
 
             // Fetch any notes missed while in the background
-            let _ = (async () => {
-              let result = await client->Misskey.Notes.fetch(
-                tt,
-                ~limit=20,
-                ~sinceId=?newestId,
-                (),
-              )
-              switch result {
-              | Ok(rawJson) => {
-                  let newNotes = NoteDecoder.decodeManyFromJson(rawJson)
-                  if Array.length(newNotes) > 0 {
-                    setState(prev => switch prev {
-                    | Loaded(d) =>
-                      let merged = Array.concat(newNotes, d.notes)
-                      Loaded({...d, notes: merged})
-                    | _ => prev
-                    })
+            let _ = (
+              async () => {
+                let result = await client->Misskey.Notes.fetch(
+                  tt,
+                  ~limit=20,
+                  ~sinceId=?newestId,
+                  (),
+                )
+                switch result {
+                | Ok(rawJson) => {
+                    let newNotes = NoteDecoder.decodeManyFromJson(rawJson)
+                    if Array.length(newNotes) > 0 {
+                      setState(prev =>
+                        switch prev {
+                        | Loaded(d) =>
+                          let merged = Array.concat(newNotes, d.notes)
+                          Loaded({...d, notes: merged})
+                        | _ => prev
+                        }
+                      )
+                    }
                   }
+                | Error(_) => () // silently ignore catch-up failures
                 }
-              | Error(_) => () // silently ignore catch-up failures
               }
-            })()
+            )()
           }
         | _ => ()
         }
       }
     }
     Document.addEventListener("visibilitychange", _handleVisibility)
-    Some(() => {
-      Document.removeEventListener("visibilitychange", _handleVisibility)
-    })
+    Some(
+      () => {
+        Document.removeEventListener("visibilitychange", _handleVisibility)
+      },
+    )
   })
 
   let handleRefresh = async () => {
@@ -245,11 +254,7 @@ let make = (~timelineType: Misskey.Stream.timelineType, ~name: string="") => {
 
     switch PreactSignals.value(AppState.client) {
     | Some(client) => {
-        let result = await client->Misskey.Notes.fetch(
-          timelineType,
-          ~limit=20,
-          (),
-        )
+        let result = await client->Misskey.Notes.fetch(timelineType, ~limit=20, ())
 
         switch result {
         | Ok(rawJson) => {
@@ -302,10 +307,10 @@ let make = (~timelineType: Misskey.Stream.timelineType, ~name: string="") => {
             switch result {
             | Ok(newRawJson) => {
                 let newNotes = NoteDecoder.decodeManyFromJson(newRawJson)
-                
+
                 // Prefetch image domains from new notes
                 NetworkOptimizer.extractImageDomainsFromNotes([newRawJson])
-                
+
                 let allNotes = Array.concat(notes, newNotes)
                 let newLastPostId = getLastNoteId(newNotes)
                 setState(_ => Loaded({
@@ -316,7 +321,8 @@ let make = (~timelineType: Misskey.Stream.timelineType, ~name: string="") => {
                   isStreaming,
                 }))
               }
-            | Error(_) => // Reset loading state on error
+            | Error(_) =>
+              // Reset loading state on error
               setState(prev => {
                 switch prev {
                 | Loaded(data) => Loaded({...data, isLoadingMore: false})
@@ -325,7 +331,8 @@ let make = (~timelineType: Misskey.Stream.timelineType, ~name: string="") => {
               })
             }
           }
-        | None => // Reset loading state if no client
+        | None =>
+          // Reset loading state if no client
           setState(prev => {
             switch prev {
             | Loaded(data) => Loaded({...data, isLoadingMore: false})
@@ -402,8 +409,7 @@ let make = (~timelineType: Misskey.Stream.timelineType, ~name: string="") => {
             )}
           >
             <iconify-icon
-              icon="tabler:loader-2"
-              style={Style.make(~animation="spin 1s linear infinite", ())}
+              icon="tabler:loader-2" style={Style.make(~animation="spin 1s linear infinite", ())}
             />
             {Preact.string("読み込み中...")}
           </span>
@@ -454,7 +460,7 @@ let make = (~timelineType: Misskey.Stream.timelineType, ~name: string="") => {
         </div>
       } else {
         <>
-          <div className="timeline-notes">
+          <div className="timeline-notes" style={{maxWidth: "800px"}}>
             {notes
             ->Array.map(note => {
               <Note.NoteView key={note.id} note />
