@@ -71,6 +71,17 @@ let useNoteThread = (~noteId: string, ~host: string): hookResult => {
 
   PreactSignals.useSignalEffect(() => {
     setState(_ => Loading)
+    PageLoading.start()
+
+    // callDone is idempotent — only the first call decrements the counter.
+    // Both the async path and the cleanup call it so they can't double-decrement.
+    let doneRef = ref(false)
+    let callDone = () => {
+      if !doneRef.contents {
+        doneRef := true
+        PageLoading.done_()
+      }
+    }
 
     let fetchNote = async () => {
       let clientOpt = PreactSignals.value(AppState.client)
@@ -82,6 +93,7 @@ let useNoteThread = (~noteId: string, ~host: string): hookResult => {
           let resolved = await resolveNote(client, noteId, host, localHost)
           switch resolved {
           | Ok((localNoteId, _noteJson)) if host != localHost =>
+            callDone()
             navigate("/notes/" ++ localNoteId ++ "/" ++ localHost)
           | Ok((localNoteId, noteJson)) =>
             switch NoteDecoder.decode(noteJson) {
@@ -99,22 +111,30 @@ let useNoteThread = (~noteId: string, ~host: string): hookResult => {
                 | Ok(json) => NoteDecoder.decodeManyFromJson(json)
                 | Error(_) => []
                 }
+                callDone()
                 setState(_ => Loaded({note, conversation, replies}))
               }
-            | None => setState(_ => Error("ノートの解析に失敗しました"))
+            | None =>
+              callDone()
+              setState(_ => Error("ノートの解析に失敗しました"))
             }
-          | Error(msg) => setState(_ => Error(msg))
+          | Error(msg) =>
+            callDone()
+            setState(_ => Error(msg))
           }
         }
       | None =>
         if authState != LoggingIn {
+          // Logged out with no client — definite error
+          callDone()
           setState(_ => Error("接続されていません"))
         }
+        // LoggingIn: keep the bar up; cleanup will call callDone when auth resolves
       }
     }
 
     let _ = fetchNote()
-    None
+    Some(() => callDone())
   })
 
   {state, mainNoteRef}

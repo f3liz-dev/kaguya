@@ -10,15 +10,11 @@ S.enableJsonString()
 // Bundle Tabler icons offline (avoids CDN fetch)
 %%raw(`import '@kaguya-src/icons.ts'`)
 
-// DOM bindings
-@val @scope("document")
-external getElementById: string => Nullable.t<Dom.element> = "getElementById"
-
-// Register SW and show a toast when a new version is waiting
+// Service-worker registration — only in a real browser, not during prerender.
 %%raw(`
 import { Serwist } from "@serwist/window";
 import * as ToastState from "./ui/ToastState.mjs";
-if ("serviceWorker" in navigator) {
+if (typeof window !== "undefined" && "serviceWorker" in navigator) {
   const serwist = new Serwist("/sw.js");
   serwist.addEventListener("waiting", () => {
     ToastState.showInfoWithAction(
@@ -31,7 +27,26 @@ if ("serviceWorker" in navigator) {
 }
 `)
 
-switch getElementById("root")->Nullable.toOption {
-| Some(root) => PreactRender.render(<KaguyaApp />, root)
-| None => Console.error("Could not find root element")
+// Client-side bootstrap — hydrate onto the prerendered HTML.
+// Guarded so the module can be imported safely during the prerender pass.
+let _isBrowser: bool = %raw(`typeof window !== "undefined"`)
+
+if _isBrowser {
+  @val @scope("document")
+  external getElementById: string => Nullable.t<Dom.element> = "getElementById"
+
+  switch getElementById("root")->Nullable.toOption {
+  | Some(root) => PreactRender.hydrate(<KaguyaApp />, root)
+  | None => Console.error("Could not find root element")
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SSR prerender entry — called by @preact/preset-vite for each baked route.
+// Returns { html } consumed by the Vite plugin to write the static HTML file.
+// ---------------------------------------------------------------------------
+
+let prerender = async (data: {..}) => {
+  let url: string = (data->Obj.magic)["url"]
+  await Iso.prerender(<KaguyaApp url />)
 }

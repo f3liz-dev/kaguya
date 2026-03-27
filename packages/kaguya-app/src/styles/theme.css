@@ -1956,6 +1956,41 @@ img, video, iframe, embed, object {
 }
 
 /* ============================================================
+   Top Progress Bar
+   ============================================================ */
+.page-loading-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 0%;
+  z-index: 10000;
+  pointer-events: none;
+  background: var(--pico-primary);
+  border-radius: 0 2px 2px 0;
+}
+
+/* Growing phase — asymptotically approaches 80% */
+.page-loading-bar--active {
+  animation: page-loading-grow 30s ease-out forwards;
+}
+
+@keyframes page-loading-grow {
+  0%   { width: 0%; }
+  10%  { width: 30%; }
+  30%  { width: 55%; }
+  60%  { width: 72%; }
+  100% { width: 80%; }
+}
+
+/* Completing phase — snap to 100% then fade */
+.page-loading-bar--completing {
+  width: 100%;
+  opacity: 0;
+  transition: width 0.25s ease-out, opacity 0.35s ease 0.25s;
+}
+
+/* ============================================================
    Loading State
    ============================================================ */
 .loading-container {

@@ -7,8 +7,23 @@ let make = (~noteId: string, ~host: string) => {
   <Layout>
     {switch state {
     | NotePageHook.Loading =>
-      <div className="loading-container">
-        <p> {Preact.string("読み込み中...")} </p>
+      <div className="timeline-skeleton">
+        <div className="skeleton-note">
+          <div className="skeleton-avatar" />
+          <div className="skeleton-content">
+            <div className="skeleton-line skeleton-line-name" />
+            <div className="skeleton-line skeleton-line-long" />
+            <div className="skeleton-line skeleton-line-medium" />
+          </div>
+        </div>
+        <div className="skeleton-note">
+          <div className="skeleton-avatar" />
+          <div className="skeleton-content">
+            <div className="skeleton-line skeleton-line-name" />
+            <div className="skeleton-line skeleton-line-long" />
+            <div className="skeleton-line skeleton-line-medium" />
+          </div>
+        </div>
       </div>
     | NotePageHook.Error(msg) =>
       <div className="note-page-error">

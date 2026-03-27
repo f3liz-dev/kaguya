@@ -62,6 +62,9 @@
     <div class="h-app" style="display:none">
       <a href="/" class="u-url p-name">kaguya</a>
     </div>
+    <!-- Progress bar: visible from first HTML paint, removed by LoadingBar on mount -->
+    <div id="initial-bar" class="page-loading-bar page-loading-bar--active"></div>
+    <!-- #root content is baked by the prerender pass; empty here is fine -->
     <div id="root"></div>
     <script type="module" src="/lib/es6/src/Main.mjs"></script>
   </body>

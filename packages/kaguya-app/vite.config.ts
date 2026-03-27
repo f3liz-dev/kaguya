@@ -22,7 +22,18 @@ export default defineConfig({
       '@kaguya-src': path.resolve(__dirname, 'src'),
     },
   },
-  plugins: [wasm(), UnoCSS(), preact(), rescript(),
+  plugins: [wasm(), UnoCSS(), preact({
+    prerender: {
+      enabled: true,
+      renderTarget: '#root',
+      // Bake login page (/) + timeline (/notifications) + a note skeleton.
+      // The note route uses placeholder segments; the skeleton is route-specific HTML.
+      additionalPretendRoutes: [
+        '/notifications',
+        '/notes/prerender/prerender.invalid',
+      ],
+    },
+  }), rescript(),
     serwist({
       swSrc: 'src/sw.ts',
       swDest: 'sw.js',

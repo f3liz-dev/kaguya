@@ -29,14 +29,17 @@ let keyOAuth2State = "kaguya:oauth2:state"
 let keyOAuth2Origin = "kaguya:oauth2:origin"
 let keyOAuth2Scope = "kaguya:oauth2:scope"
 
+// Guard all localStorage access: during the prerender pass there is no window.
+let _isBrowser: bool = %raw(`typeof window !== "undefined"`)
+
 let get = (key: string): option<string> => {
-  getItem(key)->Nullable.toOption
+  if _isBrowser { getItem(key)->Nullable.toOption } else { None }
 }
 
 let set = (key: string, value: string): unit => {
-  setItem(key, value)
+  if _isBrowser { setItem(key, value) }
 }
 
 let remove = (key: string): unit => {
-  removeItem(key)
+  if _isBrowser { removeItem(key) }
 }

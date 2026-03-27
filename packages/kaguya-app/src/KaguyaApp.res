@@ -1,29 +1,87 @@
 // SPDX-License-Identifier: MPL-2.0
 
-// Route wrapper components to extract params from wouter
+// true only during the Vite prerender pass; replaced with a literal at build time
+let _isSsr: bool = %raw(`import.meta.env.SSR`)
+
+// ---------------------------------------------------------------------------
+// Route wrapper components
+//
+// preact-iso's Router matches children by their `path` prop, then calls
+// cloneElement(child, urlParams) to inject URL segments as additional props.
+// Default values ("") are never used at runtime — preact-iso always provides them.
+// ---------------------------------------------------------------------------
+
+module HomeRoute = {
+  @jsx.component
+  let make = (~path: string="") => {
+    let _ = path
+    <HomePage />
+  }
+}
+
+module NotificationsRoute = {
+  @jsx.component
+  let make = (~path: string="") => {
+    let _ = path
+    <NotificationsPage />
+  }
+}
+
+module PerformanceRoute = {
+  @jsx.component
+  let make = (~path: string="") => {
+    let _ = path
+    <PerformancePage />
+  }
+}
+
+module AddAccountRoute = {
+  @jsx.component
+  let make = (~path: string="") => {
+    let _ = path
+    <LoginPage />
+  }
+}
+
+module SettingsRoute = {
+  @jsx.component
+  let make = (~path: string="") => {
+    let _ = path
+    <SettingsPage />
+  }
+}
+
+module NotesIndexRoute = {
+  @jsx.component
+  let make = (~path: string="") => {
+    let _ = path
+    <Layout>
+      <div className="loading-container">
+        <p> {Preact.string("ノートを選択してください")} </p>
+      </div>
+    </Layout>
+  }
+}
+
 module NotePageRoute = {
   @jsx.component
-  let make = () => {
-    let params = Wouter.useParams()
-    let noteId = params->Dict.get("noteId")->Option.getOr("")
-    let host = params->Dict.get("host")->Option.getOr("")
+  let make = (~path: string="", ~noteId: string="", ~host: string="") => {
+    let _ = path
     <NotePage noteId host />
   }
 }
 
 // Handles push notification redirects: /push/notes/:noteId?userId=<misskeyUserId>
-// Switches to the matching account then redirects to /notes/:noteId/:host
 module PushNoteRoute = {
   @jsx.component
-  let make = () => {
-    let params = Wouter.useParams()
-    let noteId = params->Dict.get("noteId")->Option.getOr("")
+  let make = (~path: string="", ~noteId: string="") => {
+    let _ = path
     let navigate = Wouter.useNavigateWithOptions()
+    // Read query params at component level (hooks must not be called inside effects)
+    let queryParams = Iso.query(Iso.useLocation())
 
     PreactHooks.useEffect0(() => {
-      let search = %raw(`window.location.search`)
-      let sp = URLSearchParams.make(search)
-      let userId = URLSearchParams.get(sp, "userId")
+      let userId = queryParams->Dict.get("userId")
 
       let accounts = PreactSignals.value(AppState.accounts)
       let matchedAccount = switch userId {
@@ -67,13 +125,14 @@ let parseAcct = (acct: string): (string, option<string>) => {
   }
 }
 
-// Catch-all route: handles /@user paths and fallback to HomePage
+// Catch-all: handles /@user paths, falls back to HomePage.
+// preact-iso injects the live `path` when rendering this as the default route.
 module CatchAllRoute = {
   @jsx.component
-  let make = () => {
-    let (location, _) = Wouter.useLocation()
-    if location->String.startsWith("/@") {
-      let acct = location->String.slice(~start=2, ~end=String.length(location))
+  let make = (~path: string="", ~default: bool=false) => {
+    let _ = default
+    if path->String.startsWith("/@") {
+      let acct = path->String.slice(~start=2, ~end=String.length(path))
       let (username, host) = parseAcct(acct)
       <UserPage username ?host />
     } else {
@@ -82,76 +141,77 @@ module CatchAllRoute = {
   }
 }
 
-@jsx.component
-let make = () => {
-  let (location, _) = Wouter.useLocation()
+// ---------------------------------------------------------------------------
+// AppContent — lives inside LocationProvider so useLocation() resolves correctly
+// ---------------------------------------------------------------------------
 
+module AppContent = {
+  @jsx.component
+  let make = () => {
+    let (location, _) = Wouter.useLocation()
+    let authState = PreactSignals.value(AppState.authState)
+
+    let loggedInRoutes =
+      <Iso.Router>
+        <HomeRoute path="/" />
+        <NotificationsRoute path="/notifications" />
+        <PerformanceRoute path="/performance" />
+        <AddAccountRoute path="/add-account" />
+        <SettingsRoute path="/settings" />
+        <NotePageRoute path="/notes/:noteId/:host" />
+        <PushNoteRoute path="/push/notes/:noteId" />
+        <NotesIndexRoute path="/notes" />
+        <CatchAllRoute default={true} />
+      </Iso.Router>
+
+    // During the prerender pass, skip auth gating so every route renders its
+    // skeleton/content rather than the login page.
+    if _isSsr {
+      loggedInRoutes
+    } else {
+      switch authState {
+      | LoggingIn =>
+        if location == "/miauth-callback" {
+          <MiAuthCallbackPage />
+        } else if location->String.startsWith("/oauth-callback") {
+          <OAuthCallbackPage />
+        } else {
+          loggedInRoutes
+        }
+      | LoggedIn => loggedInRoutes
+      | LoggedOut | LoginFailed(_) =>
+        if location == "/miauth-callback" {
+          <MiAuthCallbackPage />
+        } else if location->String.startsWith("/oauth-callback") {
+          <OAuthCallbackPage />
+        } else {
+          <LoginPage />
+        }
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Root component
+// `url` is forwarded to LocationProvider for SSR route resolution;
+// on the client it is always "" (LocationProvider reads window.location).
+// ---------------------------------------------------------------------------
+
+@jsx.component
+let make = (~url: string="") => {
   PreactHooks.useEffect0(() => {
     let _ = AuthManager.restoreSession()
     None
   })
 
-  // Subscribe to auth state
-  let authState = PreactSignals.value(AppState.authState)
-  let isSwitchingAccount = PreactSignals.value(AppState.isSwitchingAccount)
-
-  // The logged-in routes (shared between LoggedIn and account-switch loading states)
-  let loggedInRoutes =
-    <Wouter.Switch>
-      <Wouter.Route path="/">
-        <HomePage />
-      </Wouter.Route>
-      <Wouter.Route path="/notifications">
-        <NotificationsPage />
-      </Wouter.Route>
-      <Wouter.Route path="/performance">
-        <PerformancePage />
-      </Wouter.Route>
-      <Wouter.Route path="/add-account">
-        <LoginPage />
-      </Wouter.Route>
-      <Wouter.Route path="/settings">
-        <SettingsPage />
-      </Wouter.Route>
-      <Wouter.Route path="/notes/:noteId/:host">
-        <NotePageRoute />
-      </Wouter.Route>
-      <Wouter.Route path="/push/notes/:noteId">
-        <PushNoteRoute />
-      </Wouter.Route>
-      <Wouter.Route path="/notes">
-        <Layout>
-          <div className="loading-container">
-            <p> {Preact.string("ノートを選択してください")} </p>
-          </div>
-        </Layout>
-      </Wouter.Route>
-      <Wouter.Route path="/:rest*">
-        <CatchAllRoute />
-      </Wouter.Route>
-    </Wouter.Switch>
+  let urlOpt: option<string> = if url != "" { Some(url) } else { None }
 
   <>
+    <LoadingBar />
     <Toast />
-    {switch authState {
-    | LoggingIn =>
-      if location == "/miauth-callback" {
-        <MiAuthCallbackPage />
-      } else if location->String.startsWith("/oauth-callback") {
-        <OAuthCallbackPage />
-      } else {
-        // Components will handle their own loading states
-        loggedInRoutes
-      }
-    | LoggedIn => loggedInRoutes
-    | LoggedOut | LoginFailed(_) => // Check if we're on a callback route
-      if location == "/miauth-callback" {
-        <MiAuthCallbackPage />
-      } else if location->String.startsWith("/oauth-callback") {
-        <OAuthCallbackPage />
-      } else {
-        <LoginPage />
-      }
-    }}
+    <Iso.LocationProvider url=?urlOpt>
+      <AppContent />
+    </Iso.LocationProvider>
   </>
 }
