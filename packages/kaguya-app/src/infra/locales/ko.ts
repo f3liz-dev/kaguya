@@ -94,6 +94,7 @@ export const ko: Record<keyof typeof ja, string> = {
   'image.show_sensitive': '열람 주의 콘텐츠 표시',
   'image.sensitive_label': '열람 주의',
   'image.tap_to_show': '탭해서 보기',
+  'image.show_more_files': '더 보기 ({n}개)',
   'image.viewer': '이미지 뷰어',
   'image.close_viewer': '이미지 뷰어 닫기',
 
@@ -340,6 +341,10 @@ export const ko: Record<keyof typeof ja, string> = {
 
   // Timeline Inbox
   'timeline_inbox.title': '타임라인 수신함',
+
+  // Interpolated
+  'aria.mention_to': '멘션: {handle}',
+  'aria.emoji_name': '{name} 이모지',
 
   // Generic
   'generic.error_prefix': '오류',

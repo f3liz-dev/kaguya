@@ -341,6 +341,13 @@ export const ja = {
 
   // Generic
   'generic.error_prefix': 'エラー',
+
+  // Interpolated — `{n}`, `{handle}`, `{name}` placeholders are
+  // substituted by t(key, params). Lift the corresponding hardcoded
+  // strings via i18n.ts's t() interpolation.
+  'image.show_more_files': 'もっと表示 ({n} 件)',
+  'aria.mention_to': 'メンション: {handle}',
+  'aria.emoji_name': '{name} 絵文字',
 } as const satisfies Record<string, string>
 
 export type I18nKey = keyof typeof ja

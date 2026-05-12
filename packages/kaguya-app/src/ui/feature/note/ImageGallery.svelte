@@ -5,8 +5,8 @@
   in grid layout (single/double/triple/multiple class), with a
   show-more button that expands the rest. Not yet mounted at runtime.
 
-  Hard-coded "Show more (N file(s))" string carried over verbatim from
-  the Preact original — same i18n gap. coto's PR-b audit retains it.
+  "Show more (N file(s))" routes through t('image.show_more_files',
+  { n }) — see infra/i18n.ts for the interpolation contract.
 -->
 
 <script lang="ts">
@@ -43,6 +43,7 @@
     (localeR.value,
       totalCount === 1 ? t('image.gallery_single') : `${totalCount}${t('image.gallery_count')}`),
   )
+  const showMoreLabel = $derived((localeR.value, t('image.show_more_files', { n: hiddenCount })))
 </script>
 
 {#if totalCount > 0}
@@ -58,7 +59,7 @@
         type="button"
         onclick={(e) => { e.stopPropagation(); expanded = true }}
       >
-        Show more ({hiddenCount} file(s))
+        {showMoreLabel}
       </button>
     {/if}
   </div>

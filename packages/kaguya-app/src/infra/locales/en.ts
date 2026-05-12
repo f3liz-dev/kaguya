@@ -343,4 +343,9 @@ export const en: Record<keyof typeof ja, string> = {
 
   // Generic
   'generic.error_prefix': 'Error',
+
+  // Interpolated
+  'image.show_more_files': 'Show more ({n} file(s))',
+  'aria.mention_to': 'Mention: {handle}',
+  'aria.emoji_name': '{name} emoji',
 }

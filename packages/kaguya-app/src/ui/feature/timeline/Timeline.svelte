@@ -12,11 +12,12 @@
 -->
 
 <script lang="ts" module>
+  import type { I18nKey } from '../../../infra/i18n'
   import type { TimelineType } from '../../../lib/backend'
 
   export type TimelineItem = {
     type_: TimelineType
-    nameKey: string
+    nameKey: I18nKey
     category: 'standard' | 'antenna' | 'list' | 'channel' | 'feed'
     customName?: string
     reactionFiltered?: boolean
@@ -33,7 +34,7 @@
     return item.reactionFiltered ? `${base}:filtered` : base
   }
 
-  export function getItemDisplayName(item: TimelineItem, tr: (k: string) => string): string {
+  export function getItemDisplayName(item: TimelineItem, tr: (k: I18nKey) => string): string {
     return item.customName ?? tr(item.nameKey)
   }
 </script>
