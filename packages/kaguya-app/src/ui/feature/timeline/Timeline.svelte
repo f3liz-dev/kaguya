@@ -168,11 +168,28 @@
   const activeFilterRules = $derived(reactionFiltered ? filterConfigR.value.rules : [])
   const hasFilterRules = $derived(activeFilterRules.length > 0)
 
+  // Last line of defense for the keyed {#each ... (note.id)} below: a duplicate
+  // id makes Svelte throw `each_key_duplicate` and thrash reconciliation hard
+  // enough to freeze the tab. The merge sites dedupe at the source, but guard
+  // the render too so no future path can wedge the timeline.
+  function dedupeById<T extends { id: string }>(notes: T[]): T[] {
+    const seen = new Set<string>()
+    const out: T[] = []
+    for (const n of notes) {
+      if (seen.has(n.id)) continue
+      seen.add(n.id)
+      out.push(n)
+    }
+    return out
+  }
+
   const visibleNotes = $derived(
     state.tag === 'Loaded'
-      ? state.notes.filter(shouldShowNote)
-        .filter((note) => !reactionFiltered || passesFilter(note))
-        .filter((note) => !currentHideNsfw || !isNsfw(note))
+      ? dedupeById(
+          state.notes.filter(shouldShowNote)
+            .filter((note) => !reactionFiltered || passesFilter(note))
+            .filter((note) => !currentHideNsfw || !isNsfw(note)),
+        )
       : [],
   )
 
@@ -376,7 +393,9 @@
       void (async () => {
         const result = await Backend.fetchTimeline(currentClient, timelineType, 20, newestId)
         if (result.ok && state.tag === 'Loaded') {
-          const newNotes = decodeManyFromJson(Array.isArray(result.value) ? result.value : [])
+          const fetched = decodeManyFromJson(Array.isArray(result.value) ? result.value : [])
+          const existingIds = new Set(state.notes.map((n) => n.id))
+          const newNotes = fetched.filter((n) => !existingIds.has(n.id))
           if (newNotes.length > 0) {
             state = { ...state, notes: [...newNotes, ...state.notes] }
           }
@@ -424,13 +443,20 @@
     const loadMorePageSize = reactionFiltered ? 50 : 20
     const result = await Backend.fetchTimeline(currentClient, timelineType, loadMorePageSize, undefined, state.lastPostId)
     if (result.ok) {
-      const newNotes = decodeManyFromJson(Array.isArray(result.value) ? result.value : [])
+      const fetched = decodeManyFromJson(Array.isArray(result.value) ? result.value : [])
       if (state.tag === 'Loaded') {
-        const newLastPostId = getLastNoteId(newNotes)
+        // Drop notes already present. A page-boundary overlap (or a note the
+        // stream already delivered) would otherwise duplicate `{#each}` keys and,
+        // because hasMore counted those dupes as "more", keep the bottom sentinel
+        // firing loadMore forever — a reactive loop that freezes the tab.
+        const existingIds = new Set(state.notes.map((n) => n.id))
+        const newNotes = fetched.filter((n) => !existingIds.has(n.id))
         state = {
           ...state,
           notes: [...state.notes, ...newNotes],
-          lastPostId: newLastPostId ?? state.lastPostId,
+          // Advance the cursor by the raw page so a fully-overlapping page still
+          // moves forward; hasMore uses the de-duped count so all-dupes stops.
+          lastPostId: getLastNoteId(fetched) ?? state.lastPostId,
           hasMore: newNotes.length > 0,
           isLoadingMore: false,
           loadMoreError: false,
