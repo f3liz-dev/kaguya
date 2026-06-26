@@ -118,14 +118,12 @@
 
   let state = $state<TimelineState>({ tag: 'Loading' })
   let pendingNotes = $state<NoteView[]>([])
-  let isScrolledDown = $state(false)
   let lastFetchedAt = $state(0)
   let nowTick = $state(Date.now())
 
   // Non-reactive references for closures.
   let subscription: BackendSubscription | undefined = undefined
   let lastSeenNoteId: string | undefined = undefined
-  let sentinelEl = $state<HTMLElement | null>(null)
   let topSentinelEl = $state<HTMLElement | null>(null)
 
   const cooldownRemainingMs = $derived(
@@ -211,17 +209,12 @@
       const decoded = decodeNote(newNote)
       if (!decoded) return
       prefetchNoteImages(decoded)
-      const shouldBuffer = isQuietR.value || isScrolledDown
-      if (shouldBuffer) {
-        if (!pendingNotes.some((n) => n.id === decoded.id)) {
-          pendingNotes = [decoded, ...pendingNotes]
-        }
-        return
-      }
-      if (state.tag !== 'Loaded') return
-      const exists = state.notes.some((n) => n.id === decoded.id)
-      if (exists) return
-      state = { ...state, notes: [decoded, ...state.notes] }
+      // Never splice a live note into what you're reading — the page should not
+      // shift under you. Always collect it and let the "new notes" pill surface
+      // it when you choose to look.
+      if (state.tag === 'Loaded' && state.notes.some((n) => n.id === decoded.id)) return
+      if (pendingNotes.some((n) => n.id === decoded.id)) return
+      pendingNotes = [decoded, ...pendingNotes]
     }
   }
 
@@ -261,22 +254,6 @@
       document.removeEventListener('visibilitychange', handleVisibilityForSave)
       saveLastSeen()
     }
-  })
-
-  // Top sentinel observer: scroll-down detect + auto-flush
-  $effect(() => {
-    const sentinel = topSentinelEl
-    if (!sentinel) return
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const isVisible = entries[0]?.isIntersecting ?? false
-        isScrolledDown = !isVisible
-        if (isVisible && !isQuietR.value) flushPendingNotes()
-      },
-      { threshold: 0 },
-    )
-    observer.observe(sentinel)
-    return () => observer.disconnect()
   })
 
   // Main fetch effect: re-runs on client / timelineType / reactionFiltered change
@@ -402,9 +379,12 @@
         if (result.ok && state.tag === 'Loaded') {
           const fetched = decodeManyFromJson(Array.isArray(result.value) ? result.value : [])
           const existingIds = new Set(state.notes.map((n) => n.id))
-          const newNotes = fetched.filter((n) => !existingIds.has(n.id))
+          const pendingIds = new Set(pendingNotes.map((n) => n.id))
+          const newNotes = fetched.filter((n) => !existingIds.has(n.id) && !pendingIds.has(n.id))
           if (newNotes.length > 0) {
-            state = { ...state, notes: [...newNotes, ...state.notes] }
+            // Surface what arrived while you were away through the same pill,
+            // rather than jumping the page back to the top on return.
+            pendingNotes = [...newNotes, ...pendingNotes]
           }
         }
       })()
@@ -481,10 +461,13 @@
     }
   }
 
-  // Bottom sentinel observer + exponential backoff retry
+  // Load-more auto-retry after a transient failure (exponential backoff).
+  // No scroll sentinel anymore: loading the next page is an explicit choice, so
+  // the timeline ends where you stopped reading instead of growing under you.
   $effect(() => {
-    if (state.tag === 'Loaded' && state.loadMoreError) return
-    if (state.tag === 'Loaded' && state.loadMoreRetries > 0 && !state.isLoadingMore) {
+    if (state.tag !== 'Loaded') return
+    if (state.loadMoreError) return
+    if (state.loadMoreRetries > 0 && !state.isLoadingMore) {
       const delay = Math.min(
         LOAD_MORE_RETRY_BASE_MS * Math.pow(2, state.loadMoreRetries - 1),
         LOAD_MORE_RETRY_CAP_MS,
@@ -492,16 +475,6 @@
       const timer = setTimeout(() => void loadMore(), delay)
       return () => clearTimeout(timer)
     }
-    const sentinel = sentinelEl
-    if (!sentinel) return
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) void loadMore()
-      },
-      { threshold: 0.1 },
-    )
-    observer.observe(sentinel)
-    return () => observer.disconnect()
   })
 
   function revealPendingAndScrollTop() {
@@ -623,7 +596,7 @@
     {:else}
       <div bind:this={topSentinelEl} class="top-sentinel"></div>
 
-      {#if !isQuiet && isScrolledDown && pendingVisibleCount > 0}
+      {#if !isQuiet && pendingVisibleCount > 0}
         <div class="new-notes-pill">
           <button type="button" onclick={revealPendingAndScrollTop}>
             {pendingVisibleCount}{L.newNotes}
@@ -672,10 +645,14 @@
           }}>{L.retry}</button>
         </div>
       {:else if state.hasMore}
-        <div bind:this={sentinelEl} class="timeline-sentinel"></div>
-        {#if state.isLoadingMore}
-          <div class="timeline-loading-more"><p>{L.loading}</p></div>
-        {/if}
+        <div class="timeline-load-more">
+          <button
+            class="secondary outline"
+            type="button"
+            disabled={state.isLoadingMore}
+            onclick={() => void loadMore()}
+          >{state.isLoadingMore ? L.loading : L.loadMore}</button>
+        </div>
       {:else}
         <div class="timeline-end">
           <p>{L.noMore}</p>

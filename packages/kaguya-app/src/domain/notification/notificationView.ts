@@ -94,6 +94,22 @@ export function typeIcon(type_: NotificationType): string {
   }
 }
 
+// "Direct" notifications are addressed to you and may want a reply: mentions,
+// replies, quotes, and incoming follow requests. Everything else (reactions,
+// renotes, follows, achievements…) is ambient — nice to notice, nothing owed.
+export function isDirectNotification(type_: NotificationType): boolean {
+  if (typeof type_ === 'object') return false
+  switch (type_) {
+    case 'Mention':
+    case 'Reply':
+    case 'Quote':
+    case 'ReceiveFollowRequest':
+      return true
+    default:
+      return false
+  }
+}
+
 export function notifHref(notif: NotificationView): string | undefined {
   if (notif.noteId) {
     const host = notif.userHost ?? ''

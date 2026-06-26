@@ -17,7 +17,7 @@
   import Link from './Link.svelte'
   import { navigate, currentPath } from './svelteRouter'
   import { instanceName } from '../domain/auth/appState'
-  import { unreadCount, inboxCount, initInbox } from '../domain/notification/notificationStore'
+  import { unreadCount, ambientUnread, inboxCount, initInbox } from '../domain/notification/notificationStore'
   import { initFilteredTimeline } from '../domain/timeline/filteredTimelineStore'
   import { init as themeInit, toggle as themeToggle, isDark, currentTheme } from './themeStore'
   import {
@@ -42,6 +42,7 @@
   const pathR = svelteSignal(currentPath)
   const instNameR = svelteSignal(instanceName)
   const notifCountR = svelteSignal(unreadCount)
+  const ambientUnreadR = svelteSignal(ambientUnread)
   const inboxUnreadR = svelteSignal(inboxCount)
   const themeR = svelteSignal(currentTheme)
   const localeR = svelteSignal(currentLocale)
@@ -65,6 +66,7 @@
 
   const location = $derived(pathR.value)
   const notifCount = $derived(notifCountR.value)
+  const ambientCount = $derived(ambientUnreadR.value)
   const inboxUnread = $derived(inboxUnreadR.value)
   const instName = $derived(instNameR.value)
   const manualQuiet = $derived(quietModeR.value)
@@ -165,6 +167,8 @@
         <iconify-icon icon="tabler:bell"></iconify-icon>
         {#if notifCount > 0}
           <span class="sidebar-notification-badge">{notifCount > 99 ? '99+' : notifCount}</span>
+        {:else if ambientCount > 0}
+          <span class="sidebar-notification-dot" aria-hidden="true"></span>
         {/if}
       </button>
     </div>
@@ -238,6 +242,8 @@
               <span aria-hidden="true">🔔</span>
               {#if notifCount > 0}
                 <span class="notification-badge">{notifCount > 99 ? '99+' : notifCount}</span>
+              {:else if ambientCount > 0}
+                <span class="notification-dot" aria-hidden="true"></span>
               {/if}
             </Link>
           </li>

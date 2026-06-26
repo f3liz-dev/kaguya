@@ -2,7 +2,7 @@
 
 import { signal, batch, computed } from '@preact/signals-core'
 import type { NotificationView } from './notificationView'
-import { decode } from './notificationView'
+import { decode, isDirectNotification } from './notificationView'
 import type { MisskeyClient } from '../../lib/misskey'
 import type { Subscription as MisskeyStreamSubscription } from '@f3liz/rescript-misskey-api'
 import { request, Stream } from '../../lib/misskey'
@@ -11,7 +11,12 @@ import { get, set } from '../../infra/storage'
 import { keyInboxDismissed } from '../../infra/storage'
 
 export const notifications = signal<NotificationView[]>([])
+// Two layers: `unreadCount` is an honest tally of direct notifications (things
+// addressed to you), shown as a number. `ambientUnread` collects everything
+// else — surfaced as a quiet presence, no count, so reactions and renotes don't
+// pile pressure on you.
 export const unreadCount = signal(0)
+export const ambientUnread = signal(0)
 export const inboxDismissedIds = signal<ReadonlySet<string>>(new Set())
 export const inboxCount = computed(() =>
   notifications.value.filter(n => !inboxDismissedIds.value.has(n.id)).length
@@ -26,9 +31,11 @@ export function addNotification(notif: NotificationView): void {
   if (current.some(n => n.id === notif.id)) return
   const updated = [notif, ...current]
   const capped = updated.length > maxNotifications ? updated.slice(0, maxNotifications) : updated
+  const direct = isDirectNotification(notif.type_)
   batch(() => {
     notifications.value = capped
-    unreadCount.value = unreadCount.value + 1
+    if (direct) unreadCount.value = unreadCount.value + 1
+    else ambientUnread.value = ambientUnread.value + 1
   })
 }
 
@@ -54,7 +61,10 @@ export async function fetchExisting(client: MisskeyClient): Promise<void> {
 }
 
 export function markAllRead(): void {
-  unreadCount.value = 0
+  batch(() => {
+    unreadCount.value = 0
+    ambientUnread.value = 0
+  })
 }
 
 export function initInbox(): void {
@@ -90,6 +100,7 @@ export function clear(): void {
   batch(() => {
     notifications.value = []
     unreadCount.value = 0
+    ambientUnread.value = 0
   })
 }
 
