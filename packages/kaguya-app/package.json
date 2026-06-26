@@ -5,9 +5,10 @@
   "type": "module",
   "license": "MPL-2.0",
   "scripts": {
-    "dev": "vite",
-    "build:vite": "vite build",
-    "build": "vite build",
+    "sync-backends": "node scripts/sync-backends.mjs",
+    "dev": "node scripts/sync-backends.mjs && vite",
+    "build:vite": "node scripts/sync-backends.mjs && vite build",
+    "build": "node scripts/sync-backends.mjs && vite build",
     "clean": "rm -rf dist",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",

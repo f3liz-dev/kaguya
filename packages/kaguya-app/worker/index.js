@@ -85,6 +85,65 @@ export default {
       });
     }
 
+    // /reset — unregister the service worker and clear all caches,
+    // then bounce to /. Used when a stale SW is pinning a broken
+    // build in users' browsers; the page itself MUST NOT be cached.
+    if (url.pathname === '/reset') {
+      const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kaguya のリセット</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 2em auto; max-width: 520px; padding: 0 1em; color: #1a1a1a; background: #faf9f7; }
+  h1 { font-size: 1.25em; font-weight: 600; }
+  #status { color: #555; }
+  .ok { color: #0a8a3e; }
+  .err { color: #b8312f; }
+</style>
+</head>
+<body>
+<h1>Kaguya をリセット中…</h1>
+<p id="status">古い Service Worker と cache を削除しています。</p>
+<script>
+(async function () {
+  const status = document.getElementById('status');
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(function (r) { return r.unregister(); }));
+    }
+    if (typeof caches !== 'undefined') {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(function (k) { return caches.delete(k); }));
+    }
+    status.textContent = '完了しました。ホームに戻ります…';
+    status.className = 'ok';
+    // cache-busting query: bypass HTTP cache + CF edge cache key.
+    // forces a fresh document fetch even if a sibling SW or proxy
+    // still has the previous build pinned for the bare root URL.
+    setTimeout(function () {
+      location.replace('/?_=' + Date.now());
+    }, 800);
+  } catch (e) {
+    status.textContent = 'リセット中にエラーが起きました: ' + (e && e.message ? e.message : e);
+    status.className = 'err';
+  }
+})();
+</script>
+</body>
+</html>`;
+      return new Response(html, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          'Pragma': 'no-cache',
+        },
+      });
+    }
+
     // Try to serve the static asset
     try {
       // First, try to get the exact asset
