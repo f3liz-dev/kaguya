@@ -306,11 +306,18 @@
         if (cancelled) return
         const notes = decodeManyFromJson(Array.isArray(cached) ? cached : [])
         const lastPostId = getLastNoteId(notes)
-        state = { tag: 'Loaded', notes, lastPostId, hasMore: notes.length > 0, isLoadingMore: false, isStreaming: false, loadMoreError: false, loadMoreRetries: 0 }
+        // isStreaming is set from canStream directly: reading `state` back here
+        // would make this effect depend on `state`, which it also writes — a
+        // self-loop that trips effect_update_depth_exceeded (home + cached +
+        // streaming all on), which then wedges Svelte's scheduler so no later
+        // reactive update flushes (the account menu / inbox / settings stop
+        // responding). This branch runs synchronously inside the fetch effect,
+        // so the read is tracked; the async branches below read `state` only
+        // after an await, which is untracked and safe.
+        state = { tag: 'Loaded', notes, lastPostId, hasMore: notes.length > 0, isLoadingMore: false, isStreaming: canStream, loadMoreError: false, loadMoreRetries: 0 }
 
         if (canStream) {
           subscription = Backend.streamTimeline(currentClient, tt, makeStreamCallback())
-          if (state.tag === 'Loaded') state = { ...state, isStreaming: true }
         }
       } else {
         if (cancelled) return
