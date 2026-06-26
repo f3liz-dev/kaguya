@@ -88,7 +88,23 @@ export function addEmoji(name: string, url: string, category?: string, aliases: 
   emojis.value = updated
 }
 
-export function addEmojis(dict: Record<string, string>): void {
+// Emoji extraction runs inside note decoding, which itself runs synchronously
+// inside reactive effects (Timeline.svelte's fetch effect decodes notes in its
+// body). Writing the `emojis` signal there mutates shared reactive state in the
+// middle of an effect flush — the bridge that renders emojis re-runs, Svelte
+// re-enters its flush, and the timeline effect runs again, decoding again. On
+// Firefox that synchronous cascade pegs the main thread until the slow-script
+// watchdog kills it ("Script terminated by timeout"); the page renders then
+// freezes (Chromium's watchdog is laxer, so it surfaced only on Firefox). So we
+// coalesce additions and apply them in a microtask, outside the synchronous
+// flush. The `changed` guard still makes repeated decodes of the same notes
+// converge to no write.
+let pendingEmojis: Record<string, string> | null = null
+
+function flushPendingEmojis(): void {
+  const dict = pendingEmojis
+  pendingEmojis = null
+  if (!dict) return
   const host = instanceName.value
   const current = { ...emojis.value }
   let changed = false
@@ -100,6 +116,14 @@ export function addEmojis(dict: Record<string, string>): void {
     }
   }
   if (changed) emojis.value = current
+}
+
+export function addEmojis(dict: Record<string, string>): void {
+  if (!pendingEmojis) {
+    pendingEmojis = {}
+    queueMicrotask(flushPendingEmojis)
+  }
+  Object.assign(pendingEmojis, dict)
 }
 
 function buildEmojiMap(emojiList: Array<{ name: string; url: string; category?: string; aliases: string[] }>, host: string): EmojiMap {
