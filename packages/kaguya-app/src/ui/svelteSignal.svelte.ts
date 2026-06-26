@@ -6,29 +6,34 @@ import { computed as coreComputed, effect, type ReadonlySignal } from '@preact/s
  * signals-core の ReadonlySignal を Svelte 5 の reactive view に変換する bridge。
  * source の値が更新されると `value` getter が最新を返す。
  *
- * なぜ値そのものを `$state` に入れないか:
+ * なぜ `$state.raw` を使うか（ふつうの `$state` でない理由）:
  * Svelte 5 の `$state` は代入されたオブジェクトを「深く」proxy 化する。だが
  * masto.js の REST client は `v1`/`timelines`/… を get トラップで動的生成する
  * Proxy で、物理プロパティを持たない。これを `$state` に入れると Svelte の
  * proxy 層が masto の動的 get を素通しできず、`client.rest.v1` が undefined に
  * なって `reading 'timelines'` で死ぬ（Mastodon だけが踏んでいた本当の原因）。
- * なので value は生のまま返し、再描画のトリガーだけ version カウンタで持つ。
+ * `$state.raw` は深 proxy 化せず参照をそのまま保持し、再代入だけで再描画する。
  *
- * Cleanup contract: `$effect` の return で signals-core の `effect()` が
- * 返す dispose を渡し、component unmount / effect re-run 時に古い subscription
- * を確実に切る。忘れると再 mount のたびに多重 subscribe して、source の 1 回の
- * update に N 個の更新が走り Svelte の effect_update_depth_exceeded で止まる。
+ * なぜ version カウンタ方式をやめたか:
+ * 旧実装は `effect(() => { source.value; version++ })` で再描画トリガーを
+ * `version`（$state）に持っていた。だが `version++` は version を「読んで書く」。
+ * signals-core の effect は生成時に同期実行され、それが外側 `$effect` の実行中に
+ * 走るため version の read が外側 effect の依存に登録され、write で自分が再実行
+ * →「effect reads and writes the same piece of state」で自己ループ。authState の
+ * ように上流が連続更新する状況（壊れたアカウントで login が失敗し続ける等）が
+ * 引き金を引き続けると effect_update_depth_exceeded でメインスレッドが固まり、
+ * 画面全体（アカウントボタンを含む）が無反応になっていた。
+ * `$state.raw` に「書くだけ」（読まない）で、この自己依存が消える。
+ *
+ * Cleanup contract: `$effect` の return で signals-core の `effect()` が返す
+ * dispose を渡し、unmount / effect re-run 時に古い subscription を確実に切る。
  */
 export function svelteSignal<T>(source: ReadonlySignal<T>): { readonly value: T } {
-  let version = $state(0)
-  $effect(() => {
-    const dispose = effect(() => { source.value; version++ })
-    return dispose
-  })
+  let snapshot = $state.raw(source.peek())
+  $effect(() => effect(() => { snapshot = source.value }))
   return {
     get value() {
-      version // Svelte 側の依存を登録するだけ（値は raw を返す）
-      return source.peek()
+      return snapshot
     },
   }
 }
@@ -43,15 +48,11 @@ export function svelteComputed<T, U>(
   fn: (v: T) => U,
 ): { readonly value: U } {
   const derived = coreComputed(() => fn(source.value))
-  let version = $state(0)
-  $effect(() => {
-    const dispose = effect(() => { derived.value; version++ })
-    return dispose
-  })
+  let snapshot = $state.raw(derived.peek())
+  $effect(() => effect(() => { snapshot = derived.value }))
   return {
     get value() {
-      version // 同上: 値は raw を返し、再描画トリガーだけ持つ
-      return derived.peek()
+      return snapshot
     },
   }
 }
