@@ -88,7 +88,12 @@ export function decode(json: unknown): NoteView | undefined {
   return {
     id: getString(obj, 'id') ?? '',
     user: account,
-    text: getString(obj, 'content') ?? undefined,
+    // Empty content ("") is how Mastodon represents "no body" — most notably
+    // on a boost wrapper. NoteView uses `undefined` as that sentinel (see the
+    // Misskey decoder), and isPureRenote keys off `text === undefined`. Map ""
+    // back to undefined so a boost is recognised as a pure renote instead of
+    // rendering as an empty shell.
+    text: getString(obj, 'content') || undefined,
     contentType: 'html',
     cw: getString(obj, 'spoilerText') || undefined,
     createdAt: getString(obj, 'createdAt') ?? '',
