@@ -11,6 +11,7 @@
     "build": "node scripts/sync-backends.mjs && vite build",
     "clean": "rm -rf dist",
     "preview": "vite preview",
+    "senga": "node senga/run.mjs",
     "deploy": "npm run build && wrangler deploy",
     "deploy:dev": "npm run build && wrangler deploy --env dev",
     "cf:dev": "wrangler dev",

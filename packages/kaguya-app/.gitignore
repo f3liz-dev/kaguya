@@ -9,3 +9,6 @@
 
 # Wrangler logs
 wrangler.log
+
+# senga (線画) の出力。焼き直せるものは置いていかない
+senga/out/
