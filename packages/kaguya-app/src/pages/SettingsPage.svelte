@@ -121,6 +121,8 @@
     cacheEmojiDone: t('settings.cache_emoji_done'),
     clearAllConfirm: t('settings.clear_all_confirm'),
     clearAllData: t('settings.clear_all_data'),
+    resetApp: t('settings.reset_app'),
+    resetAppDescription: t('settings.reset_app_description'),
     appTagline: t('app.tagline'),
     aboutPrivacy: t('settings.about_privacy'),
   }))
@@ -353,7 +355,7 @@
       <h3 class="settings-section-title">{L.sectionLanguage}</h3>
       <div class="settings-card">
         <div class="settings-radio-group">
-          {#each [['ja', '日本語'], ['en', 'English']] as const as [value, label] (value)}
+          {#each [['ja', '日本語'], ['en', 'English'], ['ko', '한국어']] as const as [value, label] (value)}
             <label>
               <input
                 type="radio"
@@ -411,6 +413,13 @@
             </small>
           </div>
         {/if}
+      </div>
+      <div class="settings-card">
+        <!-- Plain <a>, not <Link>: a native full-page navigation to the
+             worker-served /reset page. Works even when the app's JavaScript
+             is broken (which is exactly when you need to clear the cache). -->
+        <a href="/reset" class="settings-btn settings-reset-link">{L.resetApp}</a>
+        <p class="settings-about">{L.resetAppDescription}</p>
       </div>
     </section>
 

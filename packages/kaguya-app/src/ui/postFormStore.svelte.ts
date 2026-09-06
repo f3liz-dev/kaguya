@@ -11,6 +11,7 @@ import * as Backend from '../lib/backend'
 import { client } from '../domain/auth/appState'
 import { showError, showSuccess } from './toastState'
 import { t } from '../infra/i18n'
+import { detectLanguage } from '../infra/langDetect'
 import { defaultNoteVisibility } from './preferencesStore'
 
 export type Attachment = {
@@ -138,6 +139,7 @@ export class Composer {
         cw: cwOpt,
         replyId,
         fileIds,
+        language: detectLanguage(this.text),
       })
 
       if (result.ok) {
