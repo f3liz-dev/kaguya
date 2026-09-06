@@ -39,11 +39,12 @@
 .stat-value {
   font-size: 1.5rem;
   font-weight: 600;
-  color: var(--pico-primary);
+  color: var(--primary-text);
 }
 
 .perf-details {
   margin-top: 1rem;
+  overflow-x: auto; /* the table is wider than a phone */
 }
 
 .perf-details summary {

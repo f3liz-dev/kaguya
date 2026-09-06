@@ -98,7 +98,7 @@
 }
 
 .login-account-add:hover {
-  color: var(--primary);
+  color: var(--primary-text);
   border-color: var(--primary);
   background: var(--primary-focus);
 }

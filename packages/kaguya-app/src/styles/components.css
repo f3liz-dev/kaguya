@@ -277,7 +277,7 @@ button.btn-quiet:disabled,
 
 .bottom-nav-btn.active {
   background: transparent;
-  color: var(--primary);
+  color: var(--primary-text);
 }
 
 .bottom-nav-btn.active::after {
@@ -674,7 +674,7 @@ button.btn-quiet:disabled,
 }
 
 .account-switcher-active-check {
-  color: var(--primary);
+  color: var(--primary-text);
   font-size: 1rem;
   font-weight: 700;
   flex-shrink: 0;
@@ -911,6 +911,9 @@ button.btn-quiet:disabled,
 .renote-indicator-name {
   color: var(--ink-soft);
   text-decoration: none;
+  display: inline-block;
+  min-width: 24px;
+  padding-block: 3px; /* tap target */
 }
 .renote-indicator-name:hover { text-decoration: underline; }
 
@@ -1354,7 +1357,7 @@ button.btn-quiet:disabled,
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  color: var(--primary);
+  color: var(--primary-text);
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
@@ -1746,7 +1749,7 @@ textarea:focus {
 }
 
 .tool-btn.active {
-  color: var(--primary);
+  color: var(--primary-text);
   background: var(--primary-focus);
   border-color: var(--primary);
 }
@@ -1765,7 +1768,7 @@ textarea:focus {
 
 .visibility-selector select:hover {
   border-color: var(--primary);
-  color: var(--primary);
+  color: var(--primary-text);
 }
 
 .visibility-selector select:focus {
@@ -2009,7 +2012,7 @@ textarea:focus {
 }
 
 .visibility-option.active {
-  color: var(--primary);
+  color: var(--primary-text);
   font-weight: 600;
 }
 

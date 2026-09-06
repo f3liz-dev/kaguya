@@ -20,11 +20,18 @@ import { unknownEndpoints } from './mock.mjs';
 
 const SCREENS = {
   login: '/?nologin',           // 垢を植えない(serve.mjs が見る)
+  'add-account': '/add-account',
   home: '/',
+  inbox: '/inbox',
+  'timeline-inbox': '/timeline-inbox',
   notifications: '/notifications',
-  settings: '/settings',
+  notes: '/notes',
+  note: '/notes/9n002/localhost',
+  'push-note': '/push/notes/9n002',
+  'push-manual': '/push-manual',
   user: '/@hinata',
-  note: '/notes/9n002',
+  settings: '/settings',
+  performance: '/performance',
 };
 const WIDTHS = { 1280: [1280, 800, 110], 390: [390, 844, 65] };
 

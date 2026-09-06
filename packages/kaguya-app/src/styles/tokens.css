@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MPL-2.0 */
-/* tokens.css — Kaguya design tokens (mokume-gane, simple kindness)
+/* tokens.css — Kaguya design tokens (超かぐや姫: 桜の紙、桃の髪、夜の青、朱、紫の影)
 
    Core principle: a small set of source-of-truth tokens (--bg, --surface,
    --ink, --border, --primary, --shadow). Every legacy --pico-*, --sidebar-*,
@@ -11,40 +11,41 @@
 
 :root {
   /* ── Core surfaces ──────────────────────────────────── */
-  --bg:             oklch(97.6% 0.008 88);   /* warm off-white page */
-  --surface:        oklch(99.2% 0.005 88);   /* card / popover — a shade of paper, not pure white */
-  --surface-sunken: oklch(94.5% 0.010 86);   /* sidebar / header / bottom-nav */
-  --surface-raised: oklch(98.6% 0.006 86);   /* dropdown / tooltip */
+  --bg:             oklch(97.5% 0.010 45);   /* 桜の紙 — the poster's white */
+  --surface:        oklch(99.2% 0.006 45);   /* card / popover — a shade of paper, not pure white */
+  --surface-sunken: oklch(94.0% 0.018 42);   /* sidebar / header / bottom-nav */
+  --surface-raised: oklch(98.5% 0.008 45);   /* dropdown / tooltip */
 
   /* ── Ink ────────────────────────────────────────────── */
-  --ink:        oklch(28.0% 0.012 70);       /* primary text */
-  --ink-soft:   oklch(48.0% 0.012 80);       /* muted text; 4.5:1 on --surface-sunken */
-  --ink-strong: oklch(20.0% 0.012 70);       /* heading / strong */
+  --ink:        oklch(27.0% 0.038 3);       /* primary text */
+  --ink-soft:   oklch(48.0% 0.035 20);       /* muted text; 4.5:1 on --surface-sunken */
+  --ink-strong: oklch(20.0% 0.030 3);       /* heading / strong */
 
   /* ── Borders ────────────────────────────────────────── */
   --border:        oklch(0% 0 0 / 0.09);
   --border-strong: oklch(0% 0 0 / 0.18);
 
   /* ── Accent ─────────────────────────────────────────── */
-  --primary:       oklch(73.8% 0.037 85.4);  /* warm beige, mokume-gane */
-  --primary-hover: oklch(68.4% 0.037 84.5);
-  --primary-focus: oklch(73.8% 0.037 85.4 / 0.20);
-  --primary-ink:   oklch(20.0% 0.012 70);    /* dark text on warm primary */
-  --primary-text:  oklch(50.0% 0.060 85);    /* the same beige, dark enough to read as text */
+  --primary:       oklch(83.0% 0.067 38);  /* かぐやの髪の桃 (#f0baa8) */
+  --primary-hover: oklch(76.0% 0.098 33);
+  --primary-focus: oklch(83.0% 0.067 38 / 0.25);
+  --primary-ink:   oklch(27.0% 0.038 3);    /* dark text on warm primary */
+  --primary-text:  oklch(39.0% 0.046 320);    /* 紫の髪 (#503d55) — the poster's other lead, for words in our colour */
 
-  /* 若葉 — connection: links, mentions, hashtags, the live dot, empty avatars.
+  /* 夜 — connection: links, mentions, hashtags, the live dot, empty avatars.
+     The poster's night sky and city light (#4cb9cb / #3d91ad).
      The surface colour and the text colour are two values on purpose. */
-  --secondary:       oklch(60.0% 0.080 155);
-  --secondary-hover: oklch(54.0% 0.080 155);
-  --secondary-focus: oklch(60.0% 0.080 155 / 0.20);
+  --secondary:       oklch(62.0% 0.085 226);
+  --secondary-hover: oklch(55.0% 0.085 226);
+  --secondary-focus: oklch(62.0% 0.085 226 / 0.20);
   --secondary-ink:   oklch(100% 0 0);
-  --secondary-text:  oklch(47.0% 0.090 158);  /* 6.4:1 on --surface */
+  --secondary-text:  oklch(46.0% 0.080 226);  /* 6.4:1 on --surface */
 
   /* ── Semantic colors ────────────────────────────────── */
   /* Three hues carry meaning: 木目金 (primary — this app, chosen things),
      若葉 (secondary — connection), 煉瓦 (error — undo / failed). The rest
      are aliases so the dark block only restates the three. */
-  --color-error:      oklch(48.0% 0.14  28);   /* brick, warm enough for paper */
+  --color-error:      oklch(53.0% 0.132 29);   /* 朱 (#ab463a) — lanterns, the kimono, the title's edge */
   --color-error-ink:  oklch(100% 0 0);         /* text on a brick button */
   --color-error-bg:   color-mix(in oklch, var(--color-error) 12%, transparent);
   --color-success:    var(--secondary-text);
@@ -206,30 +207,30 @@
    ============================================================ */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg:             oklch(22.7% 0.008 84);
-    --surface:        oklch(26.3% 0.009 67);
-    --surface-sunken: oklch(20.2% 0.005 67);
-    --surface-raised: oklch(28.5% 0.011 70);
+    --bg:             oklch(22.0% 0.030 355);
+    --surface:        oklch(27.0% 0.035 3);
+    --surface-sunken: oklch(19.0% 0.028 355);
+    --surface-raised: oklch(30.0% 0.035 3);
 
-    --ink:        oklch(85.5% 0.011 67);
-    --ink-soft:   oklch(65.1% 0.016 70);
-    --ink-strong: oklch(92.0% 0.011 67);
+    --ink:        oklch(92.0% 0.026 41);
+    --ink-soft:   oklch(70.0% 0.030 30);
+    --ink-strong: oklch(96.0% 0.020 41);
 
     --border:        oklch(100% 0 0 / 0.10);
     --border-strong: oklch(100% 0 0 / 0.20);
 
-    --primary:       oklch(79.2% 0.041 80.8);
-    --primary-hover: oklch(73.0% 0.041 80.8);
-    --primary-focus: oklch(79.2% 0.041 80.8 / 0.20);
-    --primary-ink:   oklch(15.0% 0.010 84.6);
-    --primary-text:  oklch(82.0% 0.050 82);
+    --primary:       oklch(83.0% 0.067 38);
+    --primary-hover: oklch(88.0% 0.055 38);
+    --primary-focus: oklch(83.0% 0.067 38 / 0.25);
+    --primary-ink:   oklch(27.0% 0.038 3);
+    --primary-text:  oklch(84.0% 0.040 320);
 
-    --secondary:       oklch(68.0% 0.080 155);
-    --secondary-hover: oklch(62.0% 0.080 155);
-    --secondary-focus: oklch(68.0% 0.080 155 / 0.20);
-    --secondary-text:  oklch(78.0% 0.090 158);
-    --color-error:     oklch(70.0% 0.120  30);
-    --color-error-ink: oklch(15.0% 0.020  30);
+    --secondary:       oklch(73.0% 0.096 212);
+    --secondary-hover: oklch(78.0% 0.090 212);
+    --secondary-focus: oklch(73.0% 0.096 212 / 0.25);
+    --secondary-text:  oklch(80.0% 0.090 212);
+    --color-error:     oklch(76.0% 0.098 33);
+    --color-error-ink: oklch(27.0% 0.038 3);
 
     --overlay-bg:          oklch(0%   0 0 / 0.65);
     --overlay-hover-light: oklch(100% 0 0 / 0.08);
@@ -242,30 +243,30 @@
 }
 
 [data-theme="dark"] {
-  --bg:             oklch(22.7% 0.008 84);
-  --surface:        oklch(26.3% 0.009 67);
-  --surface-sunken: oklch(20.2% 0.005 67);
-  --surface-raised: oklch(28.5% 0.011 70);
+  --bg:             oklch(22.0% 0.030 355);
+  --surface:        oklch(27.0% 0.035 3);
+  --surface-sunken: oklch(19.0% 0.028 355);
+  --surface-raised: oklch(30.0% 0.035 3);
 
-  --ink:        oklch(85.5% 0.011 67);
-  --ink-soft:   oklch(65.1% 0.016 70);
-  --ink-strong: oklch(92.0% 0.011 67);
+  --ink:        oklch(92.0% 0.026 41);
+  --ink-soft:   oklch(70.0% 0.030 30);
+  --ink-strong: oklch(96.0% 0.020 41);
 
   --border:        oklch(100% 0 0 / 0.10);
   --border-strong: oklch(100% 0 0 / 0.20);
 
-  --primary:       oklch(79.2% 0.041 80.8);
-  --primary-hover: oklch(73.0% 0.041 80.8);
-  --primary-focus: oklch(79.2% 0.041 80.8 / 0.20);
-  --primary-ink:   oklch(15.0% 0.010 84.6);
-  --primary-text:  oklch(82.0% 0.050 82);
+  --primary:       oklch(83.0% 0.067 38);
+  --primary-hover: oklch(88.0% 0.055 38);
+  --primary-focus: oklch(83.0% 0.067 38 / 0.25);
+  --primary-ink:   oklch(27.0% 0.038 3);
+  --primary-text:  oklch(84.0% 0.040 320);
 
-  --secondary:       oklch(68.0% 0.080 155);
-  --secondary-hover: oklch(62.0% 0.080 155);
-  --secondary-focus: oklch(68.0% 0.080 155 / 0.20);
-  --secondary-text:  oklch(78.0% 0.090 158);
-  --color-error:     oklch(70.0% 0.120  30);
-  --color-error-ink: oklch(15.0% 0.020  30);
+  --secondary:       oklch(73.0% 0.096 212);
+  --secondary-hover: oklch(78.0% 0.090 212);
+  --secondary-focus: oklch(73.0% 0.096 212 / 0.25);
+  --secondary-text:  oklch(80.0% 0.090 212);
+  --color-error:     oklch(76.0% 0.098 33);
+  --color-error-ink: oklch(27.0% 0.038 3);
 
   --overlay-bg:          oklch(0%   0 0 / 0.65);
   --overlay-hover-light: oklch(100% 0 0 / 0.08);

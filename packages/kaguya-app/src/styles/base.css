@@ -42,7 +42,7 @@ h5, h6 { font-size: 1rem; }
 p { margin: 0 0 var(--space-4); }
 
 a {
-  color: var(--primary);
+  color: var(--primary-text);
   text-decoration: none;
   transition: color var(--duration) var(--ease);
 }
