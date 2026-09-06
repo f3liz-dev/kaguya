@@ -334,8 +334,22 @@ export const Media = {
   },
 
   // hackers.pub uploads in three steps: reserve an upload slot, PUT the bytes
-  // to the returned URL, then finalize to get the medium id.
+  // to the returned URL, then finalize to get the medium id. The PUT goes to
+  // a pre-signed storage URL straight from the browser, which only works if
+  // that storage lets our origin in; when any step fails we fall back to
+  // createMedium with a data: URL, which hackers.pub accepts and which needs
+  // no CORS at all.
   upload: async (client: HackersPubClient, file: File | Blob): Promise<Result<string>> => {
+    const direct = await uploadDirect(client, file)
+    if (direct.ok) return direct
+    const viaDataUrl = await uploadAsDataUrl(client, file)
+    if (viaDataUrl.ok) return viaDataUrl
+    return err(`${direct.error}; then ${viaDataUrl.error}`)
+  },
+}
+
+async function uploadDirect(client: HackersPubClient, file: File | Blob): Promise<Result<string>> {
+  {
     const startRes = await call('hp/startMediumUpload', 'startMediumUpload', HP.startMediumUpload(client.hp, {
       contentLength: file.size,
       contentType: file.type || 'application/octet-stream',
@@ -345,7 +359,8 @@ export const Media = {
     const uploadUrl = start?.['uploadUrl']
     const uploadId = start?.['uploadId']
     if (typeof uploadUrl !== 'string' || typeof uploadId !== 'string') {
-      return err('hackers.pub: upload did not return an upload slot')
+      const path = start?.['inputPath']
+      return err(path ? `hackers.pub: upload slot refused (${String(path)})` : 'hackers.pub: upload did not return an upload slot')
     }
     const method = typeof start?.['method'] === 'string' ? (start['method'] as string) : 'PUT'
     const headers: Record<string, string> = {}
@@ -368,5 +383,28 @@ export const Media = {
     const id = medium?.['id']
     if (typeof id !== 'string') return err('hackers.pub: upload finished without a medium id')
     return ok(id)
-  },
+  }
+}
+
+function readAsDataUrl(file: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error ?? new Error('could not read the file'))
+    reader.readAsDataURL(file)
+  })
+}
+
+async function uploadAsDataUrl(client: HackersPubClient, file: File | Blob): Promise<Result<string>> {
+  let url: string
+  try { url = await readAsDataUrl(file) } catch (e) { return err(e instanceof Error ? e.message : 'could not read the file') }
+  const res = await call('hp/createMedium', 'createMedium', HP.createMedium(client.hp, { url }))
+  if (!res.ok) return res
+  const medium = asRecord(asRecord(res.value)?.['medium'])
+  const id = medium?.['id']
+  if (typeof id !== 'string') {
+    const path = asRecord(res.value)?.['inputPath']
+    return err(path ? `hackers.pub: createMedium rejected ${String(path)}` : 'hackers.pub: createMedium returned no medium')
+  }
+  return ok(id)
 }

@@ -136,8 +136,9 @@ export class Composer {
         this.uploadingCount = 0
         // One failed image means the post you wrote is not the post that
         // would go out. Stop here, keep the text and the files, say so.
-        if (uploadResults.some((r) => !r.ok)) {
-          showError(t('note.image_upload_failed'))
+        const failed = uploadResults.find((r) => !r.ok)
+        if (failed && !failed.ok) {
+          showError(`${t('note.image_upload_failed')}: ${failed.error}`)
           this.isPosting = false
           return
         }
