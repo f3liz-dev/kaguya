@@ -421,7 +421,11 @@ export function showUser(
     case 'misskey': return Misskey.Users.show(bc.client, opts)
     case 'mastodon': {
       if (opts.userId) return Mastodon.Accounts.show(bc.client, opts.userId)
-      return Promise.resolve(err('Mastodon requires userId for account lookup'))
+      if (opts.username) {
+        const acct = opts.host ? `${opts.username}@${opts.host}` : opts.username
+        return Mastodon.Accounts.lookup(bc.client, acct)
+      }
+      return Promise.resolve(err('Mastodon requires userId or username for account lookup'))
     }
     case 'bluesky': {
       const actor = opts.userId ?? (opts.username ? (opts.host ? `${opts.username}.${opts.host}` : opts.username) : undefined)

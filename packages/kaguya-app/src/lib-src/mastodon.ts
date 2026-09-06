@@ -99,6 +99,11 @@ export const Accounts = {
   show: (client: MastodonClient, id: string): Promise<Result<unknown, string>> =>
     call('accounts/show', M.Accounts.show(client.m, id)),
 
+  // GET /api/v1/accounts/lookup?acct=user[@host] — the one way to go from a
+  // handle in the URL to an account without a search.
+  lookup: (client: MastodonClient, acct: string): Promise<Result<unknown, string>> =>
+    call('accounts/lookup', M.Accounts.lookup(client.m, acct)),
+
   statuses: (
     client: MastodonClient,
     id: string,
