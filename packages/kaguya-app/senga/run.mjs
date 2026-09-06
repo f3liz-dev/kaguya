@@ -4,6 +4,7 @@
 //   node senga/run.mjs --only home        # 一画面だけ
 //   node senga/run.mjs --lang ko          # 韓国語で
 //   node senga/run.mjs --width 390        # 幅ひとつだけ
+//   SENGA_DOWN=1 node senga/run.mjs --only home   # 箱が落ちているとき
 //
 // 先に `pnpm run build`。箱は要らない ── dist を senga/serve.mjs で出して、
 // API は senga/mock.mjs が答える。出力は senga/out/<name>-<width>.{txt,png}。

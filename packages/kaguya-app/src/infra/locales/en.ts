@@ -115,6 +115,7 @@ export const en: Record<keyof typeof ja, string> = {
   'timeline.user_filter_hides_all': 'All fetched notes are hidden by your user filters.',
   'timeline.no_more': 'No more notes',
   'timeline.load_failed': 'Could not load',
+  'timeline.reconnecting': 'Waiting for the connection…',
   'timeline.load_failed_retry': 'Could not load. Please try again',
   'timeline.caught_up': "You're all caught up",
   'timeline.new_notes': ' new notes',

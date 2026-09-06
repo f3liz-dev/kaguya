@@ -53,12 +53,13 @@
   import { shouldShowNote, userFilters } from '../../../domain/user/userFilterStore'
   import { filterConfig, passesFilter, loadCachedNotes, saveCachedNotes } from '../../../domain/timeline/filteredTimelineStore'
   import { currentLocale, t } from '../../../infra/i18n'
+  import { autoRetry, isConnectivityError } from '../../../infra/connection'
   import { svelteSignal } from '../../svelteSignal.svelte'
 
   type TimelineState =
     | { tag: 'Loading' }
     | { tag: 'Loaded'; notes: NoteView[]; lastPostId: string | undefined; hasMore: boolean; isLoadingMore: boolean; isStreaming: boolean; loadMoreError: boolean; loadMoreRetries: number }
-    | { tag: 'Error'; message: string }
+    | { tag: 'Error'; message: string; offline: boolean }
 
   const LOAD_MORE_MAX_RETRIES = 4
   const LOAD_MORE_RETRY_BASE_MS = 2_000
@@ -132,6 +133,10 @@
   const localeR = svelteSignal(currentLocale)
 
   let state = $state<TimelineState>({ tag: 'Loading' })
+  // Bumped by autoRetry to run the fetch effect again after a connection loss.
+  let reloadTick = $state(0)
+  const retry = autoRetry(() => { reloadTick += 1 })
+  $effect(() => () => retry.stop())
   let pendingNotes = $state<NoteView[]>([])
   let lastFetchedAt = $state(0)
   let nowTick = $state(Date.now())
@@ -176,6 +181,7 @@
     newNotes: t('timeline.new_notes'),
     showNew: t('timeline.show_new'),
     loadFailed: t('timeline.load_failed'),
+    reconnecting: t('timeline.reconnecting'),
     retry: t('action.retry'),
     whatWentWrong: t('timeline.what_went_wrong'),
     noNotes: t('timeline.no_notes'),
@@ -291,6 +297,7 @@
     const tt = timelineType
     const rf = reactionFiltered
     const acctId = activeAccountId.peek()
+    void reloadTick
     let cancelled = false
 
     state = { tag: 'Loading' }
@@ -300,7 +307,7 @@
     async function fetchTimeline() {
       if (!currentClient) {
         if (authStateR.value !== 'LoggingIn') {
-          state = { tag: 'Error', message: L.notConnected }
+          state = { tag: 'Error', message: L.notConnected, offline: false }
         }
         return
       }
@@ -354,6 +361,7 @@
         if (cancelled) return
 
         if (result.ok) {
+          retry.ok()
           const fetched = decodeManyFromJson(Array.isArray(result.value) ? result.value : [])
           if (sinceId && cachedNotes.length > 0) {
             const existingIds = new Set(cachedNotes.map((n) => n.id))
@@ -367,7 +375,9 @@
         } else if (cachedNotes.length === 0) {
           if (subscription) Backend.unsubscribe(subscription)
           subscription = undefined
-          state = { tag: 'Error', message: result.error }
+          const offline = isConnectivityError(result.error)
+          state = { tag: 'Error', message: result.error, offline }
+          if (offline) retry.fail()
         }
       }
     }
@@ -436,7 +446,7 @@
     pendingNotes = []
     dropPrefetch()
     const currentClient = client.peek()
-    if (!currentClient) { state = { tag: 'Error', message: L.notConnected }; return }
+    if (!currentClient) { state = { tag: 'Error', message: L.notConnected, offline: false }; return }
 
     const refreshPageSize = reactionFiltered ? 50 : 20
     const result = await Backend.fetchTimeline(currentClient, timelineType, refreshPageSize)
@@ -445,7 +455,9 @@
       cacheHomePage(activeAccountId.peek(), result.value)
       state = { tag: 'Loaded', notes, lastPostId: getLastNoteId(notes), hasMore: notes.length > 0, isLoadingMore: false, isStreaming: wasStreaming, loadMoreError: false, loadMoreRetries: 0 }
     } else {
-      state = { tag: 'Error', message: result.error }
+      const offline = isConnectivityError(result.error)
+      state = { tag: 'Error', message: result.error, offline }
+      if (offline) retry.fail()
     }
   }
 
@@ -653,7 +665,11 @@
     </div>
   {/if}
 
-  {#if state.tag === 'Error'}
+  {#if state.tag === 'Error' && state.offline}
+    <div class="timeline-error-friendly timeline-error-friendly--compact">
+      <p>{L.reconnecting}</p>
+    </div>
+  {:else if state.tag === 'Error'}
     <div class="timeline-error-friendly">
       <p>{L.loadFailed}</p>
       <button

@@ -116,6 +116,7 @@ export const ko: Record<keyof typeof ja, string> = {
   'timeline.user_filter_hides_all': '가져온 노트가 모두 사용자 필터로 숨겨져 있어요.',
   'timeline.no_more': '더 이상 없어요',
   'timeline.load_failed': '불러오지 못했어요',
+  'timeline.reconnecting': '연결을 기다리고 있어요…',
   'timeline.load_failed_retry': '불러오지 못했어요. 다시 시도해 주세요',
   'timeline.caught_up': '여기까지 읽었어요',
   'timeline.new_notes': '개의 새 노트',

@@ -113,6 +113,7 @@ export const ja = {
   'timeline.user_filter_hides_all': '取得したノートはすべてユーザーフィルターで非表示になっています。',
   'timeline.no_more': 'これ以上ありません',
   'timeline.load_failed': 'うまく読み込めませんでした',
+  'timeline.reconnecting': 'つながりを待っています…',
   'timeline.load_failed_retry': 'うまく読み込めませんでした。もう一度お試しください',
   'timeline.caught_up': 'ここまで読みました',
   'timeline.new_notes': '件の新しいノート',

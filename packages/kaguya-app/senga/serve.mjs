@@ -36,6 +36,12 @@ export function serve(root, port, { locale = 'ja' } = {}) {
     const pathname = decodeURIComponent(url.pathname);
 
     if (pathname.startsWith('/api/')) {
+      // SENGA_DOWN=1: the instance is unreachable — to see the waiting line.
+      if (process.env.SENGA_DOWN && pathname.startsWith('/api/notes/')) {
+        res.writeHead(503, { 'content-type': 'application/json' });
+        res.end('{"error":"down"}');
+        return;
+      }
       const body = await readBody(req);
       const json = JSON.stringify(answer(pathname.slice('/api/'.length), body));
       res.writeHead(200, { 'content-type': 'application/json' });
