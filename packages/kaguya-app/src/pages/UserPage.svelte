@@ -53,6 +53,7 @@
   const localeR = svelteSignal(currentLocale)
   const loggedInR = svelteSignal(isLoggedIn)
   const currentUserR = svelteSignal(currentUser)
+  const clientR = svelteSignal(client)
   const userFiltersR = svelteSignal(userFilters)
 
   let state = $state<PageState>({ type: 'Loading' })
@@ -89,8 +90,12 @@
   $effect(() => {
     void username
     void host
+    // Reactive read: a direct/deep navigation into this page can land while
+    // restoreSession() is still resolving, before client is set. Depending on
+    // clientR.value (not client.peek()) lets this effect re-run once login
+    // finishes, instead of getting stuck on the "not connected" state forever.
+    const currentClient = clientR.value
     state = { type: 'Loading' }
-    const currentClient = client.peek()
     if (!currentClient) {
       state = { type: 'Error', message: L.notConnected }
       return
@@ -278,7 +283,7 @@
 
       {#if profile.description}
         <div class="user-bio">
-          <ContentRenderer text={profile.description} />
+          <ContentRenderer text={profile.description} contentType={profile.descriptionType} />
         </div>
       {/if}
 

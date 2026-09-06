@@ -83,6 +83,12 @@
     return err(L.remoteResolveFailed)
   }
 
+  // A note is a federated copy only when its origin URL points at another
+  // server; hackers.pub (and Mastodon) set `uri` on local notes too.
+  function isRemoteUri(uri: string, localHost: string): boolean {
+    try { return new URL(uri).hostname !== localHost } catch { return true }
+  }
+
   $effect(() => {
     if (state.type === 'Loaded') {
       mainNoteEl?.scrollIntoView({ behavior: 'instant' as ScrollBehavior })
@@ -198,7 +204,7 @@
     </div>
   {:else}
     <div class="note-page-container">
-      {#if state.note.uri}
+      {#if state.note.uri && isRemoteUri(state.note.uri, instanceR.value)}
         <div class="note-remote-warning" role="status">
           <p>⚠ {L.remoteWarning}</p>
           <a href={state.note.uri} target="_blank" rel="noopener noreferrer" class="note-original-link">

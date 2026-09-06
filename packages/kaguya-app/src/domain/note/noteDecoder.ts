@@ -8,6 +8,7 @@ import { reactionAcceptanceFromString } from '../../infra/sharedTypes'
 import { asObj, getString } from '../../infra/jsonUtils'
 import { decode as decodeMastodon } from './mastodonNoteDecoder'
 import { decodeFeedViewPost as decodeBluesky } from './blueskyNoteDecoder'
+import { decode as decodeHackerspub } from './hackerspubNoteDecoder'
 
 function decodeReactions(obj: Record<string, unknown>): Record<string, number> {
   const raw = obj['reactions']
@@ -81,6 +82,12 @@ export function decode(json: unknown): NoteView | undefined {
   // Bluesky PostView: direct post with AT URI
   if (typeof obj['uri'] === 'string' && (obj['uri'] as string).startsWith('at://') && obj['author']) {
     return decodeBluesky(json)
+  }
+
+  // hackers.pub Post: an `actor` (with a fediverse handle) and no Misskey `user`.
+  const hpActor = asObj(obj['actor'])
+  if (hpActor && !obj['user'] && typeof hpActor['handle'] === 'string') {
+    return decodeHackerspub(json)
   }
 
   extractAndCache(obj)

@@ -42,6 +42,7 @@ export function navigate(path: string, replace = false): void {
 export type Route =
   | { kind: 'MiAuthCallback' }
   | { kind: 'OAuthCallback' }
+  | { kind: 'HackersPubCallback' }
   | { kind: 'Home' }
   | { kind: 'Inbox' }
   | { kind: 'TimelineInbox' }
@@ -59,6 +60,7 @@ export type Route =
 export function parseRoute(path: string): Route {
   if (path === '/miauth-callback') return { kind: 'MiAuthCallback' }
   if (path.startsWith('/oauth-callback')) return { kind: 'OAuthCallback' }
+  if (path.startsWith('/hackerspub-callback')) return { kind: 'HackersPubCallback' }
   if (path === '/') return { kind: 'Home' }
   if (path === '/inbox') return { kind: 'Inbox' }
   if (path === '/timeline-inbox') return { kind: 'TimelineInbox' }
@@ -82,5 +84,5 @@ export function parseRoute(path: string): Route {
 }
 
 export function isAuthBypassRoute(route: Route): boolean {
-  return route.kind === 'MiAuthCallback' || route.kind === 'OAuthCallback'
+  return route.kind === 'MiAuthCallback' || route.kind === 'OAuthCallback' || route.kind === 'HackersPubCallback'
 }

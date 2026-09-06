@@ -4,7 +4,7 @@ import * as v from 'valibot'
 import type { PermissionMode } from '../auth/authTypes'
 import { hostnameFromOrigin } from '../../infra/urlUtils'
 
-export type BackendType = 'misskey' | 'mastodon' | 'bluesky'
+export type BackendType = 'misskey' | 'mastodon' | 'bluesky' | 'hackerspub'
 
 export type Account = {
   id: string
@@ -18,6 +18,7 @@ export type Account = {
   misskeyUserId: string
   mastodonAccountId: string
   blueskyDid: string
+  hackerspubActorId: string
 }
 
 const AccountSchema = v.object({
@@ -28,10 +29,11 @@ const AccountSchema = v.object({
   host: v.string(),
   avatarUrl: v.fallback(v.string(), ''),
   permissionMode: v.fallback(v.picklist(['ReadOnly', 'Standard'] as const), 'Standard' as const),
-  backend: v.fallback(v.picklist(['misskey', 'mastodon', 'bluesky'] as const), 'misskey' as const),
+  backend: v.fallback(v.picklist(['misskey', 'mastodon', 'bluesky', 'hackerspub'] as const), 'misskey' as const),
   misskeyUserId: v.fallback(v.string(), ''),
   mastodonAccountId: v.fallback(v.string(), ''),
   blueskyDid: v.fallback(v.string(), ''),
+  hackerspubActorId: v.fallback(v.string(), ''),
 })
 
 export function makeId(origin: string, username: string): string {
@@ -69,10 +71,11 @@ const LenientAccountSchema = v.object({
   host: v.fallback(v.string(), ''),
   avatarUrl: v.fallback(v.string(), ''),
   permissionMode: v.fallback(v.picklist(['ReadOnly', 'Standard'] as const), 'Standard' as const),
-  backend: v.fallback(v.picklist(['misskey', 'mastodon', 'bluesky'] as const), 'misskey' as const),
+  backend: v.fallback(v.picklist(['misskey', 'mastodon', 'bluesky', 'hackerspub'] as const), 'misskey' as const),
   misskeyUserId: v.fallback(v.string(), ''),
   mastodonAccountId: v.fallback(v.string(), ''),
   blueskyDid: v.fallback(v.string(), ''),
+  hackerspubActorId: v.fallback(v.string(), ''),
 })
 
 // Best-effort recovery of an object-shaped entry that the strict schema rejects.

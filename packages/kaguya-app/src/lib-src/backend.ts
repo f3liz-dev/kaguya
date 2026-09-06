@@ -10,17 +10,20 @@ import type { MastodonClient, MastodonSubscription } from './mastodon'
 import * as Mastodon from './mastodon'
 import type { BlueskyClient, BlueskySubscription } from './bluesky'
 import * as Bluesky from './bluesky'
+import type { HackersPubClient } from './hackerspub'
+import * as Hackerspub from './hackerspub'
 import type { Result } from '../infra/result'
 import { ok, err } from '../infra/result'
 
 // ─── Core types ──────────────────────────────────────────────────────────────
 
-export type BackendType = 'misskey' | 'mastodon' | 'bluesky'
+export type BackendType = 'misskey' | 'mastodon' | 'bluesky' | 'hackerspub'
 
 export type BackendClient =
   | { backend: 'misskey'; client: MisskeyClient }
   | { backend: 'mastodon'; client: MastodonClient }
   | { backend: 'bluesky'; client: BlueskyClient }
+  | { backend: 'hackerspub'; client: HackersPubClient }
 
 export type BackendSubscription =
   | { backend: 'misskey'; sub: MisskeySubscription }
@@ -71,6 +74,27 @@ function toBlueskyTimeline(t: TimelineType): Bluesky.TimelineType | undefined {
   return undefined
 }
 
+function toHackerspubTimeline(t: TimelineType): Hackerspub.TimelineType | undefined {
+  if (typeof t === 'string') {
+    if (t === 'home') return 'home'
+    if (t === 'local' || t === 'global') return 'global' // both map to the public feed
+    return undefined // hybrid and the custom-timeline kinds are unsupported
+  }
+  return undefined
+}
+
+function toHackerspubVisibility(v: Visibility): Hackerspub.Visibility {
+  switch (v) {
+    case 'public': return 'PUBLIC'
+    case 'home': return 'PUBLIC'
+    case 'unlisted': return 'NONE'
+    case 'followers': return 'FOLLOWERS'
+    case 'private': return 'FOLLOWERS'
+    case 'specified': return 'DIRECT'
+    case 'direct': return 'DIRECT'
+  }
+}
+
 function toMisskeyVisibility(v: Visibility): Misskey.Visibility {
   switch (v) {
     case 'public': return 'public'
@@ -102,6 +126,7 @@ export function origin(bc: BackendClient): string {
     case 'misskey': return Misskey.origin(bc.client)
     case 'mastodon': return bc.client.origin
     case 'bluesky': return 'https://bsky.social'
+    case 'hackerspub': return Hackerspub.origin(bc.client)
   }
 }
 
@@ -110,6 +135,7 @@ export function close(bc: BackendClient): void {
     case 'misskey': Misskey.close(bc.client); break
     case 'mastodon': Mastodon.close(bc.client); break
     case 'bluesky': Bluesky.close(bc.client); break
+    case 'hackerspub': Hackerspub.close(bc.client); break
   }
 }
 
@@ -118,6 +144,7 @@ export function currentUser(bc: BackendClient): Promise<Result<unknown>> {
     case 'misskey': return Misskey.currentUser(bc.client)
     case 'mastodon': return Mastodon.Accounts.verifyCredentials(bc.client)
     case 'bluesky': return Bluesky.Accounts.getProfile(bc.client)
+    case 'hackerspub': return Hackerspub.currentUser(bc.client)
   }
 }
 
@@ -146,6 +173,11 @@ export async function fetchTimeline(
       if (!bt) return err('Timeline type not supported on Bluesky')
       return Bluesky.Timelines.fetch(bc.client, bt, limit, untilId)
     }
+    case 'hackerspub': {
+      const ht = toHackerspubTimeline(type)
+      if (!ht) return err('Timeline type not supported on hackers.pub')
+      return Hackerspub.Timelines.fetch(bc.client, ht, limit, sinceId, untilId)
+    }
   }
 }
 
@@ -160,6 +192,7 @@ export async function createNote(
     replyId?: string
     renoteId?: string
     fileIds?: string[]
+    language?: string
   },
 ): Promise<Result<unknown>> {
   switch (bc.backend) {
@@ -180,6 +213,7 @@ export async function createNote(
         spoilerText: opts?.cw,
         inReplyToId: opts?.replyId,
         mediaIds: opts?.fileIds,
+        language: opts?.language,
       })
     case 'bluesky': {
       if (opts?.renoteId && !text) {
@@ -215,8 +249,16 @@ export async function createNote(
           }
         }
       }
-      return Bluesky.Posts.create(bc.client, text, { replyTo, embed })
+      return Bluesky.Posts.create(bc.client, text, { replyTo, embed, language: opts?.language })
     }
+    case 'hackerspub':
+      return Hackerspub.Notes.create(bc.client, text, {
+        visibility: opts?.visibility ? toHackerspubVisibility(opts.visibility) : undefined,
+        replyId: opts?.replyId,
+        renoteId: opts?.renoteId,
+        mediaIds: opts?.fileIds,
+        language: opts?.language,
+      })
   }
 }
 
@@ -225,6 +267,7 @@ export function showNote(bc: BackendClient, noteId: string): Promise<Result<unkn
     case 'misskey': return Misskey.Notes.show(bc.client, noteId)
     case 'mastodon': return Mastodon.Statuses.show(bc.client, noteId)
     case 'bluesky': return Bluesky.Posts.show(bc.client, noteId)
+    case 'hackerspub': return Hackerspub.Notes.show(bc.client, noteId)
   }
 }
 
@@ -245,6 +288,7 @@ export async function noteContext(
       return ok((r.value as { ancestors?: unknown[] }).ancestors ?? [])
     }
     case 'bluesky': return Bluesky.Posts.getThread(bc.client, noteId)
+    case 'hackerspub': return Hackerspub.Notes.context(bc.client, noteId)
   }
 }
 
@@ -263,6 +307,7 @@ export async function noteChildren(
       return ok((r.value as { descendants?: unknown[] }).descendants ?? [])
     }
     case 'bluesky': return Bluesky.Posts.getThread(bc.client, noteId)
+    case 'hackerspub': return Hackerspub.Notes.children(bc.client, noteId)
   }
 }
 
@@ -284,6 +329,7 @@ export async function react(
       if (!post.cid) return err('Missing CID for like')
       return Bluesky.Posts.like(bc.client, noteId, post.cid)
     }
+    case 'hackerspub': return Hackerspub.Notes.react(bc.client, noteId, reaction)
   }
 }
 
@@ -300,6 +346,7 @@ export async function unreact(bc: BackendClient, noteId: string): Promise<Result
       if (!likeUri) return err('No like to remove')
       return Bluesky.Posts.unlike(bc.client, likeUri)
     }
+    case 'hackerspub': return Hackerspub.Notes.unreact(bc.client, noteId)
   }
 }
 
@@ -308,6 +355,7 @@ export function favourite(bc: BackendClient, noteId: string): Promise<Result<unk
     case 'misskey': return Misskey.Favorites.create(bc.client, noteId)
     case 'mastodon': return Mastodon.Statuses.bookmark(bc.client, noteId)
     case 'bluesky': return react(bc, noteId) // Bluesky has no separate bookmark
+    case 'hackerspub': return Hackerspub.Notes.bookmark(bc.client, noteId)
   }
 }
 
@@ -316,6 +364,7 @@ export function unfavourite(bc: BackendClient, noteId: string): Promise<Result<u
     case 'misskey': return Misskey.Favorites.delete(bc.client, noteId)
     case 'mastodon': return Mastodon.Statuses.unbookmark(bc.client, noteId)
     case 'bluesky': return unreact(bc, noteId)
+    case 'hackerspub': return Hackerspub.Notes.unbookmark(bc.client, noteId)
   }
 }
 
@@ -330,6 +379,7 @@ export function pollVote(
     case 'misskey': return Misskey.Notes.pollVote(bc.client, noteOrPollId, choice)
     case 'mastodon': return Mastodon.Statuses.pollVote(bc.client, noteOrPollId, [choice])
     case 'bluesky': return Promise.resolve(err('Polls are not supported on Bluesky'))
+    case 'hackerspub': return Hackerspub.Notes.vote(bc.client, noteOrPollId, choice)
   }
 }
 
@@ -340,6 +390,7 @@ export function follow(bc: BackendClient, userId: string): Promise<Result<unknow
     case 'misskey': return Misskey.Following.follow(bc.client, userId)
     case 'mastodon': return Mastodon.Accounts.follow(bc.client, userId)
     case 'bluesky': return Bluesky.Follows.follow(bc.client, userId)
+    case 'hackerspub': return Hackerspub.Following.follow(bc.client, userId)
   }
 }
 
@@ -356,6 +407,7 @@ export async function unfollow(bc: BackendClient, userId: string): Promise<Resul
       if (!followUri) return err('Not following this user')
       return Bluesky.Follows.unfollow(bc.client, followUri)
     }
+    case 'hackerspub': return Hackerspub.Following.unfollow(bc.client, userId)
   }
 }
 
@@ -376,6 +428,7 @@ export function showUser(
       if (!actor) return Promise.resolve(err('Bluesky requires userId or username for account lookup'))
       return Bluesky.Accounts.show(bc.client, actor)
     }
+    case 'hackerspub': return Hackerspub.Users.show(bc.client, opts)
   }
 }
 
@@ -400,6 +453,8 @@ export function userNotes(
         cursor: opts?.untilId,
         filter: opts?.withReplies ? undefined : 'posts_no_replies',
       })
+    case 'hackerspub':
+      return Hackerspub.Users.notes(bc.client, userId, { limit: opts?.limit, untilId: opts?.untilId })
   }
 }
 
@@ -410,6 +465,7 @@ export function listEmojis(bc: BackendClient): Promise<Result<unknown[]>> {
     case 'misskey': return Misskey.Emojis.list(bc.client)
     case 'mastodon': return Mastodon.CustomEmojis.list(bc.client) as Promise<Result<unknown[]>>
     case 'bluesky': return Promise.resolve(ok([])) // Bluesky has no custom emojis
+    case 'hackerspub': return Promise.resolve(ok([])) // reactions are picked, not listed
   }
 }
 
@@ -420,6 +476,7 @@ export function listLists(bc: BackendClient): Promise<Result<unknown[]>> {
     case 'misskey': return Misskey.CustomTimelines.lists(bc.client)
     case 'mastodon': return Mastodon.Lists.list(bc.client) as Promise<Result<unknown[]>>
     case 'bluesky': return Bluesky.Lists.list(bc.client)
+    case 'hackerspub': return Promise.resolve(ok([]))
   }
 }
 
@@ -428,6 +485,7 @@ export function listAntennas(bc: BackendClient): Promise<Result<unknown[]>> {
     case 'misskey': return Misskey.CustomTimelines.antennas(bc.client)
     case 'mastodon': return Promise.resolve(ok([]))
     case 'bluesky': return Promise.resolve(ok([]))
+    case 'hackerspub': return Promise.resolve(ok([]))
   }
 }
 
@@ -436,6 +494,7 @@ export function listChannels(bc: BackendClient): Promise<Result<unknown[]>> {
     case 'misskey': return Misskey.CustomTimelines.channels(bc.client)
     case 'mastodon': return Promise.resolve(ok([]))
     case 'bluesky': return Promise.resolve(ok([]))
+    case 'hackerspub': return Promise.resolve(ok([]))
   }
 }
 
@@ -444,6 +503,7 @@ export function listFeeds(bc: BackendClient): Promise<Result<unknown[]>> {
     case 'misskey': return Promise.resolve(ok([]))
     case 'mastodon': return Promise.resolve(ok([]))
     case 'bluesky': return Bluesky.Feeds.listSaved(bc.client) as Promise<Result<unknown[]>>
+    case 'hackerspub': return Promise.resolve(ok([]))
   }
 }
 
@@ -458,6 +518,7 @@ export function uploadMedia(
     case 'misskey': return Misskey.Drive.upload(bc.client, file, opts?.sensitive, opts?.onProgress as never)
     case 'mastodon': return Mastodon.Media.upload(bc.client, file)
     case 'bluesky': return Bluesky.Media.upload(bc.client, file)
+    case 'hackerspub': return Hackerspub.Media.upload(bc.client, file)
   }
 }
 
@@ -471,6 +532,7 @@ export function fetchNotifications(
     case 'misskey': return Misskey.request(bc.client, 'i/notifications', { limit: opts?.limit ?? 30 })
     case 'mastodon': return Mastodon.Notifications.list(bc.client, { limit: opts?.limit ?? 30 })
     case 'bluesky': return Bluesky.Notifications.list(bc.client, { limit: opts?.limit ?? 30 })
+    case 'hackerspub': return Hackerspub.Notifications.list(bc.client, { limit: opts?.limit ?? 30 })
   }
 }
 
@@ -496,6 +558,8 @@ export function streamTimeline(
     }
     case 'bluesky':
       return undefined // Bluesky has no user-facing streaming
+    case 'hackerspub':
+      return undefined // hackers.pub has no user-facing streaming
   }
 }
 
@@ -514,6 +578,8 @@ export function streamNotifications(
     }
     case 'bluesky':
       return undefined // Bluesky has no user-facing streaming
+    case 'hackerspub':
+      return undefined // hackers.pub has no user-facing streaming
   }
 }
 
@@ -530,6 +596,7 @@ export function closeStream(bc: BackendClient): void {
     case 'misskey': Misskey.Stream.close(bc.client); break
     case 'mastodon': Mastodon.Stream.close(bc.client); break
     case 'bluesky': Bluesky.Stream.close(bc.client); break
+    case 'hackerspub': break
   }
 }
 
@@ -538,6 +605,7 @@ export function onStreamConnected(bc: BackendClient, callback: () => void): void
     case 'misskey': Misskey.Stream.onConnected(bc.client, callback); break
     case 'mastodon': callback(); break
     case 'bluesky': callback(); break
+    case 'hackerspub': callback(); break
   }
 }
 
@@ -546,6 +614,7 @@ export function onStreamDisconnected(bc: BackendClient, callback: () => void): v
     case 'misskey': Misskey.Stream.onDisconnected(bc.client, callback); break
     case 'mastodon': break
     case 'bluesky': break
+    case 'hackerspub': break
   }
 }
 
@@ -556,6 +625,7 @@ export function instanceMeta(bc: BackendClient): Promise<Result<unknown>> {
     case 'misskey': return Misskey.Meta.get(bc.client)
     case 'mastodon': return Mastodon.Instance.get(bc.client)
     case 'bluesky': return Bluesky.Server.describeServer(bc.client)
+    case 'hackerspub': return Promise.resolve(ok({}))
   }
 }
 
@@ -570,6 +640,7 @@ export function rawRequest(
     case 'misskey': return Misskey.request(bc.client, endpoint, params)
     case 'mastodon': return Promise.resolve(err(`Raw request not supported on Mastodon: ${endpoint}`))
     case 'bluesky': return Promise.resolve(err(`Raw request not supported on Bluesky: ${endpoint}`))
+    case 'hackerspub': return Promise.resolve(err(`Raw request not supported on hackers.pub: ${endpoint}`))
   }
 }
 

@@ -9,7 +9,7 @@
 //   - For avatar: already proxied by Misskey API as /proxy/avatar.webp?url=...
 
 import { signal } from '@preact/signals-core'
-import { instanceOrigin } from '../domain/auth/appState'
+import { instanceOrigin, client } from '../domain/auth/appState'
 import { keyMediaProxy } from './storage'
 
 export const mediaProxyEnabled = signal(false)
@@ -40,6 +40,11 @@ export function proxyUrl(url: string): string {
   if (!mediaProxyEnabled.value) return url
   if (!url) return url
 
+  // The /proxy/ endpoint is a Misskey feature. Other backends (Mastodon,
+  // Bluesky, hackers.pub) serve public CDN URLs that 404 if routed through a
+  // proxy that doesn't exist on their server — leave those untouched.
+  if (client.value?.backend !== 'misskey') return url
+
   const origin = instanceOrigin.value
   if (!origin) return url
 
@@ -48,9 +53,6 @@ export function proxyUrl(url: string): string {
 
   // Only proxy http(s) URLs
   if (!url.startsWith('https://') && !url.startsWith('http://')) return url
-
-  // Bluesky doesn't have a media proxy endpoint — CDN URLs are already public
-  if (origin === 'https://bsky.social') return url
 
   return `${origin}/proxy/image.webp?url=${encodeURIComponent(url)}`
 }

@@ -3,6 +3,7 @@
 import { asObj, getString } from '../../infra/jsonUtils'
 import { extractAndCache, extractFromJsonDict, getEmojiUrl, isUnicodeEmoji } from '../emoji/emojiOps'
 import { fixAvatarUrl } from '../../infra/urlUtils'
+import { instanceName } from '../auth/appState'
 
 export type NotificationType =
   | 'Follow'
@@ -112,8 +113,10 @@ export function isDirectNotification(type_: NotificationType): boolean {
 
 export function notifHref(notif: NotificationView): string | undefined {
   if (notif.noteId) {
-    const host = notif.userHost ?? ''
-    return `/notes/${notif.noteId}/${host}`
+    // The note id in a notification is the local instance's id for the note,
+    // so it lives on the local instance — not on the notifying user's host.
+    // (userHost is only the right host for the user-profile link below.)
+    return `/notes/${notif.noteId}/${instanceName.value}`
   }
   if (notif.userUsername) {
     const handle = notif.userHost ? `${notif.userUsername}@${notif.userHost}` : notif.userUsername

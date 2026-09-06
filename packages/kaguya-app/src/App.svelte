@@ -25,10 +25,12 @@
   import UserPage from './pages/UserPage.svelte'
   import MiAuthCallbackPage from './pages/MiAuthCallbackPage.svelte'
   import OAuthCallbackPage from './pages/OAuthCallbackPage.svelte'
+  import HackersPubCallbackPage from './pages/HackersPubCallbackPage.svelte'
   import PerformancePage from './pages/PerformancePage.svelte'
   import PushManualRegistrationPage from './pages/PushManualRegistrationPage.svelte'
   import { authState, accounts, activeAccountId, instanceName } from './domain/auth/appState'
   import { restoreSession, switchAccount } from './domain/auth/authManager'
+  import { startTimelinePrefetch } from './domain/timeline/timelinePrefetch'
   import { currentLocale, t } from './infra/i18n'
   import { currentPath, navigate, parseRoute, isAuthBypassRoute } from './ui/svelteRouter'
   import { svelteSignal } from './ui/svelteSignal.svelte'
@@ -42,8 +44,9 @@
 
   onMount(() => {
     const path = window.location.pathname
-    if (path === '/oauth-callback' || path === '/miauth-callback') return
+    if (path === '/oauth-callback' || path === '/miauth-callback' || path === '/hackerspub-callback') return
     void restoreSession()
+    startTimelinePrefetch()
   })
 
   const route = $derived(parseRoute(pathR.value))
@@ -85,6 +88,8 @@
   <MiAuthCallbackPage />
 {:else if route.kind === 'OAuthCallback'}
   <OAuthCallbackPage />
+{:else if route.kind === 'HackersPubCallback'}
+  <HackersPubCallbackPage />
 {:else if !isAuthBypassRoute(route) && !isLoggedIn}
   <LoginPage />
 {:else if route.kind === 'Home' || route.kind === 'Unknown'}

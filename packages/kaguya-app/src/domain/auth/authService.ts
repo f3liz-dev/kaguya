@@ -11,7 +11,8 @@ import { makeId as makeAccountId, permissionModeToString } from '../account/acco
 import type { Account } from '../account/account'
 import { subscribe as notifSubscribe, unsubscribe as notifUnsubscribe, clear as notifClear, setInitial as notifSetInitial } from '../notification/notificationStore'
 import { restore as pushRestore, unsubscribe as pushUnsubscribe } from '../notification/pushNotificationStore'
-import { clear as timelineClear, setFromInitData } from '../timeline/timelineStore'
+import { clear as timelineClear, setFromInitData, cacheHomeTimeline, seedHomeFromCache, dropHomeTimelineCache, homeTimelineInitial } from '../timeline/timelineStore'
+import { schedulePrefetch } from '../timeline/timelinePrefetch'
 import { clear as emojiClear } from '../emoji/emojiStore'
 import * as storage from '../../infra/storage'
 import { normalizeOrigin, hostnameFromOrigin } from '../../infra/urlUtils'
@@ -20,12 +21,20 @@ import { addPreconnectForInstance, prefetchCommonDomains } from '../../infra/net
 import * as Misskey from '../../lib/misskey'
 import * as Mastodon from '../../lib/mastodon'
 import * as Bluesky from '../../lib/bluesky'
+import * as Hackerspub from '../../lib/hackerspub'
 import * as Backend from '../../lib/backend'
 import type { BackendClient } from '../../lib/backend'
 import type { BackendType } from '../account/account'
 import type { OAuthSession } from '@atproto/oauth-client-browser'
 import type { Result } from '../../infra/result'
 import { ok, err } from '../../infra/result'
+
+// A background fetch started for one account must not write its result into the
+// shared signals if the user has since switched away. Guards every async store
+// update on the right side of a switch.
+function isStillActive(accountId: string): boolean {
+  return activeAccountId.value === accountId
+}
 
 function finalizeLogin(bc: BackendClient, accountId: string, origin: string): void {
   if (bc.backend === 'misskey') {
@@ -34,6 +43,9 @@ function finalizeLogin(bc: BackendClient, accountId: string, origin: string): vo
   }
   addPreconnectForInstance(origin)
   prefetchCommonDomains(origin)
+  // Every successful activation funnels through here, so this is the one place
+  // to warm the *other* accounts' timelines in the background.
+  schedulePrefetch()
 }
 
 export async function login(opts: { origin: string; token: string; backend?: BackendType }): Promise<Result<void, LoginError>> {
@@ -57,10 +69,29 @@ export async function login(opts: { origin: string; token: string; backend?: Bac
         return err({ type: 'InvalidCredentials' })
       }
       userJson = userResult.value
-      const userObj = userResult.value
-      userUsername = userObj.username ?? 'unknown'
-      userAvatarUrl = userObj.avatar ?? ''
-      backendUserId = userObj.id ?? ''
+      const userObj = asObj(userJson)
+      userUsername = getString(userObj ?? {}, 'username') ?? 'unknown'
+      userAvatarUrl = getString(userObj ?? {}, 'avatar') ?? ''
+      backendUserId = getString(userObj ?? {}, 'id') ?? ''
+    } else if (backendType === 'hackerspub') {
+      const hpClient = Hackerspub.connect(normalized, opts.token)
+      bc = { backend: 'hackerspub', client: hpClient }
+      const userResult = await Hackerspub.currentUser(hpClient)
+      if (!userResult.ok) {
+        authState.value = { type: 'LoginFailed', error: { type: 'InvalidCredentials' } }
+        return err({ type: 'InvalidCredentials' })
+      }
+      userJson = userResult.value
+      // viewer: { id, handle, name, actor: { id, handleHost, avatarUrl, ... } }
+      const userObj = asObj(userJson)
+      const actorObj = asObj(userObj?.['actor'])
+      // handle is the full `@name@host`; the account's username is just the
+      // local part (host is added back from the origin below).
+      const rawHandle = getString(userObj ?? {}, 'handle') ?? 'unknown'
+      const handleBody = rawHandle.startsWith('@') ? rawHandle.slice(1) : rawHandle
+      userUsername = handleBody.split('@')[0] || 'unknown'
+      userAvatarUrl = getString(actorObj ?? {}, 'avatarUrl') ?? ''
+      backendUserId = getString(actorObj ?? {}, 'id') ?? ''
     } else {
       const misskeyClient = Misskey.connect(normalized, opts.token)
       bc = { backend: 'misskey', client: misskeyClient }
@@ -96,6 +127,7 @@ export async function login(opts: { origin: string; token: string; backend?: Bac
       misskeyUserId: backendType === 'misskey' ? backendUserId : '',
       mastodonAccountId: backendType === 'mastodon' ? backendUserId : '',
       blueskyDid: '',
+      hackerspubActorId: backendType === 'hackerspub' ? backendUserId : '',
     }
 
     upsertAccount(account)
@@ -166,6 +198,7 @@ export async function loginBluesky(opts: { session: OAuthSession }): Promise<Res
       misskeyUserId: '',
       mastodonAccountId: '',
       blueskyDid: userDid,
+      hackerspubActorId: '',
     }
 
     upsertAccount(account)
@@ -229,18 +262,44 @@ async function fetchSupplementaryData(
       Misskey.Notes.fetch(newClient, 'home', 20),
     ])
 
-    notifSetInitial(notificationsResult)
-    setFromInitData({
-      antennasResult,
-      listsResult,
-      channelsResult,
-      homeTimelineResult,
-    })
+    // Cache this account's home unconditionally — it's correct for this account
+    // regardless of which one is on screen now, and warms a later switch back.
+    if (homeTimelineResult.ok && Array.isArray(homeTimelineResult.value)) {
+      cacheHomeTimeline(accountId, homeTimelineResult.value)
+    }
+    // Only touch the active signals while this account is still the active one;
+    // otherwise a slow response would overwrite the view of an account we
+    // already switched to.
+    if (isStillActive(accountId)) {
+      notifSetInitial(notificationsResult)
+      setFromInitData({
+        antennasResult,
+        listsResult,
+        channelsResult,
+        homeTimelineResult,
+      })
+    }
   } catch {
     console.error('Failed to fetch supplementary data')
   }
 
   finalizeLogin({ backend: 'misskey', client: newClient }, accountId, normalized)
+}
+
+// Mastodon/Bluesky have no supplementary-data fetch, so a switch into them seeds
+// home from cache (instant) and then catches up here: a fresh home page plus a
+// credential refresh for the display name. Misskey rides fetchSupplementaryData.
+async function refreshActiveHome(bc: BackendClient, accountId: string): Promise<void> {
+  const result = await Backend.fetchTimeline(bc, 'home', 20)
+  if (result.ok && Array.isArray(result.value)) {
+    cacheHomeTimeline(accountId, result.value)
+    if (isStillActive(accountId)) homeTimelineInitial.value = result.value
+  }
+}
+
+async function refreshCurrentUser(bc: BackendClient, accountId: string): Promise<void> {
+  const result = await Backend.currentUser(bc)
+  if (result.ok && isStillActive(accountId)) currentUser.value = result.value
 }
 
 function teardownStores(): void {
@@ -252,7 +311,10 @@ function teardownStores(): void {
 
 export function logout(): void {
   const currentId = activeAccountId.value
-  if (currentId) removeAccount(currentId)
+  if (currentId) {
+    removeAccount(currentId)
+    dropHomeTimelineCache(currentId)
+  }
 
   storage.remove(storage.keyOrigin)
   storage.remove(storage.keyToken)
@@ -287,29 +349,73 @@ export async function switchAccount(accountId: string): Promise<Result<void, Log
   const account = accs.find(a => a.id === accountId)
   if (!account) return err({ type: 'UnknownError', message: 'Account not found' })
 
-  isSwitchingAccount.value = true
+  // Bluesky's client needs an async OAuth session restore, so there's no
+  // synchronous client to swap in — it keeps the original teardown+login path.
+  if (account.backend === 'bluesky' && account.blueskyDid) {
+    isSwitchingAccount.value = true
+    const currentClient = client.value
+    if (currentClient) Backend.close(currentClient)
+    teardownStores()
+    storage.set(storage.keyActiveAccountId, accountId)
+    storage.set(storage.keyPermissionMode, permissionModeToString(account.permissionMode))
 
-  const currentClient = client.value
-  if (currentClient) Backend.close(currentClient)
+    const { restoreBlueskySession } = await import('./blueskyAuth')
+    const session = await restoreBlueskySession(account.blueskyDid)
+    const result = session ? await loginBluesky({ session }) : err({ type: 'InvalidCredentials' } as LoginError)
+    isSwitchingAccount.value = false
+    return result
+  }
+
+  // Misskey / Mastodon: connect synchronously from the stored token. No network
+  // in the critical path, so the switch is instant rather than waiting on a
+  // verify round-trip.
+  isSwitchingAccount.value = true
+  const prevClient = client.value
+  if (prevClient) Backend.close(prevClient)
   teardownStores()
 
+  const bc: BackendClient = account.backend === 'mastodon'
+    ? { backend: 'mastodon', client: Mastodon.connect(account.origin, account.token) }
+    : { backend: 'misskey', client: Misskey.connect(account.origin, account.token) }
+
+  storage.set(storage.keyOrigin, account.origin)
+  storage.set(storage.keyToken, account.token)
   storage.set(storage.keyActiveAccountId, accountId)
   storage.set(storage.keyPermissionMode, permissionModeToString(account.permissionMode))
 
-  let result: Result<void, LoginError>
-  if (account.backend === 'bluesky' && account.blueskyDid) {
-    const { restoreBlueskySession } = await import('./blueskyAuth')
-    const session = await restoreBlueskySession(account.blueskyDid)
-    if (session) {
-      result = await loginBluesky({ session })
-    } else {
-      result = err({ type: 'InvalidCredentials' })
-    }
+  const backendUserId = account.backend === 'misskey' ? account.misskeyUserId : account.mastodonAccountId
+
+  // Flip everything the UI reads in a single batch: the header identity, the
+  // client the timeline fetches with, and the seeded home page all change
+  // together — so the timeline can never show one account's posts under
+  // another's name. currentUser is synthesized from the stored account (handle,
+  // avatar, id) for an immediate header; refreshCurrentUser replaces it with the
+  // live profile once it returns. The home seed is this account's cached page,
+  // or undefined → the timeline does a normal fresh fetch.
+  batch(() => {
+    instanceOrigin.value = account.origin
+    accessToken.value = account.token
+    client.value = bc
+    currentUser.value = { id: backendUserId, username: account.username, name: account.username, avatarUrl: account.avatarUrl }
+    permissionMode.value = account.permissionMode
+    activeAccountId.value = accountId
+    seedHomeFromCache(accountId)
+    authState.value = 'LoggedIn'
+  })
+
+  // Catch the view up in the background, each write guarded against a later
+  // switch. Misskey rides fetchSupplementaryData (home + lists + notifications +
+  // finalize); Mastodon refreshes home and the display name directly.
+  if (bc.backend === 'misskey') {
+    void fetchSupplementaryData(bc.client, accountId, account.origin)
   } else {
-    result = await login({ origin: account.origin, token: account.token, backend: account.backend })
+    finalizeLogin(bc, accountId, account.origin)
+    void refreshCurrentUser(bc, accountId)
+    void refreshActiveHome(bc, accountId)
   }
+
   isSwitchingAccount.value = false
-  return result
+  return ok(undefined)
 }
 
 export async function restoreSession(): Promise<void> {

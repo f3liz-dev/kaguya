@@ -17,6 +17,7 @@
   import * as Mastodon from '../lib/mastodon'
   import { restoreBlueskySession } from '../domain/auth/blueskyAuth'
   import * as Bluesky from '../lib/bluesky'
+  import * as Hackerspub from '../lib/hackerspub'
   import { currentLocale, t } from '../infra/i18n'
   import { proxyAvatarUrl } from '../infra/mediaProxy'
   import { navigateTo } from 'kaguya-network'
@@ -41,11 +42,22 @@
   let isValidating = $state(accounts.peek().length > 0)
   let showAddAccount = $state(false)
 
+  // hackers.pub passwordless sign-in is a two-step magic-link flow: request a
+  // challenge (an email goes out), then complete it with the emailed code.
+  let hpIdentifier = $state('')
+  let hpUseEmail = $state(false)
+  let hpChallengeToken = $state<string | undefined>(undefined)
+  let hpCode = $state('')
+  // After the challenge email is sent, clicking the email link is the default;
+  // manual code entry is revealed only when the user asks for it.
+  let hpShowCodeInput = $state(false)
+
   const L = $derived((localeR.value, {
     appTitle: t('app.title'),
     appSubtitle: t('app.subtitle'),
     validating: t('login.validating'),
     accountAdd: t('account.add'),
+    back: t('action.back'),
     invalidTokens: t('account.invalid_tokens'),
     remove: t('action.remove'),
     blueskyHandle: t('login.bluesky_handle'),
@@ -69,7 +81,25 @@
     helpMiauth: t('login.help_miauth'),
     helpToken: t('login.help_token'),
     helpOauth2: t('login.help_oauth2'),
+    helpHackerspub: t('login.help_hackerspub'),
+    hpUsername: t('login.hp_username'),
+    hpEmail: t('login.hp_email'),
+    hpUseEmailToggle: t('login.hp_use_email'),
+    hpUseUsernameToggle: t('login.hp_use_username'),
+    hpSendCode: t('login.hp_send_code'),
+    hpCodeLabel: t('login.hp_code'),
+    hpCodeSent: t('login.hp_code_sent'),
+    hpVerify: t('login.hp_verify'),
+    hpBack: t('login.hp_back'),
+    hpLinkSent: t('login.hp_link_sent'),
+    hpEnterCode: t('login.hp_enter_code'),
   }))
+
+  // On the "check your email" step the primary action is the email link, so the
+  // form's submit button only appears once the user opts into manual code entry.
+  const showSubmitButton = $derived(
+    !(backendChoice === 'hackerspub' && hpChallengeToken && !hpShowCodeInput),
+  )
 
   $effect(() => {
     const storedAccounts = accountsR.value
@@ -98,6 +128,11 @@
             const result = await Mastodon.Accounts.verifyCredentials(c)
             return { account, ok: result.ok }
           }
+          if (account.backend === 'hackerspub') {
+            const c = Hackerspub.connect(account.origin, account.token)
+            const result = await Hackerspub.currentUser(c)
+            return { account, ok: result.ok }
+          }
           const c = misskeyConnect(account.origin, account.token)
           const result = await misskeyCurrentUser(c)
           return { account, ok: result.ok }
@@ -121,13 +156,22 @@
   const isSubmitDisabled = $derived(
     isSubmitting ||
       (backendChoice === 'bluesky' ? !blueskyHandle : !instanceUrl) ||
-      (backendChoice !== 'bluesky' && loginMethod === 'token' && !token),
+      (backendChoice === 'hackerspub'
+        ? hpChallengeToken ? !hpCode : !hpIdentifier
+        : false) ||
+      (backendChoice === 'misskey' && loginMethod === 'token' && !token),
   )
 
   const effectiveMethod = $derived(backendChoice === 'misskey' ? loginMethod : 'oauth2')
 
   const submitLabel = $derived(
-    backendChoice === 'bluesky'
+    backendChoice === 'hackerspub'
+      ? isSubmitting
+        ? L.connecting
+        : hpChallengeToken
+          ? L.hpVerify
+          : L.hpSendCode
+    : backendChoice === 'bluesky'
       ? isSubmitting
         ? L.connecting
         : L.loginWithBluesky
@@ -143,7 +187,9 @@
   )
 
   const helpText = $derived(
-    backendChoice === 'bluesky'
+    backendChoice === 'hackerspub'
+      ? L.helpHackerspub
+    : backendChoice === 'bluesky'
       ? L.helpBluesky
       : backendChoice === 'mastodon'
         ? L.helpMastodon
@@ -158,7 +204,35 @@
 
   function handleSubmit(e: Event) {
     e.preventDefault()
-    if (backendChoice === 'bluesky') {
+    if (backendChoice === 'hackerspub') {
+      if (!instanceUrl) return
+      if (!hpChallengeToken) {
+        // Step 1: request the magic-link / code email.
+        if (!hpIdentifier) return
+        isSubmitting = true
+        void AuthManager.startHackersPubLogin({
+          origin: instanceUrl,
+          identifier: hpIdentifier,
+          useEmail: hpUseEmail,
+          locale: localeR.value,
+        }).then((result) => {
+          isSubmitting = false
+          if (result.ok) hpChallengeToken = result.value.token
+        })
+      } else {
+        // Step 2: complete the challenge with the emailed code.
+        if (!hpCode) return
+        isSubmitting = true
+        void AuthManager.completeHackersPubLogin({
+          origin: instanceUrl,
+          token: hpChallengeToken,
+          code: hpCode,
+        }).then((result) => {
+          isSubmitting = false
+          if (result.ok) navigateTo('/')
+        })
+      }
+    } else if (backendChoice === 'bluesky') {
       if (!blueskyHandle) return
       isSubmitting = true
       void AuthManager.startBlueskyOAuth2({ handle: blueskyHandle }).then((result) => {
@@ -193,6 +267,16 @@
       authState.value = 'LoggedOut'
     }
   }
+
+  // Leave the add-account screen and return to the account list, clearing any
+  // half-finished form state so it opens fresh next time.
+  function closeAddAccount() {
+    showAddAccount = false
+    isSubmitting = false
+    hpChallengeToken = undefined
+    hpCode = ''
+    hpShowCodeInput = false
+  }
 </script>
 
 <main class="container login-page">
@@ -204,7 +288,7 @@
 
     {#if isValidating}
       <div class="login-validating">{L.validating}</div>
-    {:else if hasValidAccounts}
+    {:else if hasValidAccounts && !showAddAccount}
       <div class="login-account-switcher">
         {#each validAccounts as account (account.id)}
           <button
@@ -231,7 +315,7 @@
       </div>
     {/if}
 
-    {#if invalidAccounts.length > 0}
+    {#if invalidAccounts.length > 0 && !showAddAccount}
       <div class="login-invalid-accounts">
         <p class="login-invalid-accounts-title">{L.invalidTokens}</p>
         {#each invalidAccounts as account (account.id)}
@@ -251,6 +335,14 @@
 
     {#if !isValidating && (!hasValidAccounts || showAddAccount)}
       <form onsubmit={handleSubmit}>
+        {#if showAddAccount}
+          <div class="login-add-header">
+            <button type="button" class="login-back-btn" onclick={closeAddAccount} aria-label={L.back}>
+              <iconify-icon icon="tabler:arrow-left"></iconify-icon>
+            </button>
+            <span class="login-add-title">{L.accountAdd}</span>
+          </div>
+        {/if}
         <div class="login-method-tabs">
           <button
             class={backendChoice === 'misskey' ? 'active' : ''}
@@ -267,6 +359,11 @@
             onclick={() => { backendChoice = 'bluesky' }}
             type="button"
           >Bluesky</button>
+          <button
+            class={backendChoice === 'hackerspub' ? 'active' : ''}
+            onclick={() => { backendChoice = 'hackerspub'; if (!instanceUrl) instanceUrl = 'https://hackers.pub' }}
+            type="button"
+          >hackers.pub</button>
         </div>
 
         {#if backendChoice === 'bluesky'}
@@ -299,6 +396,69 @@
               required
             />
           </label>
+        {/if}
+
+        {#if backendChoice === 'hackerspub'}
+          {#if !hpChallengeToken}
+            <div class="login-method-tabs">
+              <button
+                class={!hpUseEmail ? 'active' : ''}
+                onclick={() => { hpUseEmail = false }}
+                type="button"
+              >{L.hpUseUsernameToggle}</button>
+              <button
+                class={hpUseEmail ? 'active' : ''}
+                onclick={() => { hpUseEmail = true }}
+                type="button"
+              >{L.hpUseEmailToggle}</button>
+            </div>
+            <label for="hp-identifier">
+              {hpUseEmail ? L.hpEmail : L.hpUsername}
+              <input
+                type={hpUseEmail ? 'email' : 'text'}
+                id="hp-identifier"
+                name="hp-identifier"
+                placeholder={hpUseEmail ? 'you@example.com' : 'username'}
+                value={hpIdentifier}
+                oninput={(e) => { hpIdentifier = (e.currentTarget as HTMLInputElement).value }}
+                disabled={isSubmitting}
+                required
+              />
+            </label>
+          {:else}
+            <p class="login-hp-sent">{L.hpLinkSent}</p>
+            {#if hpShowCodeInput}
+              <label for="hp-code">
+                {L.hpCodeLabel}
+                <input
+                  type="text"
+                  id="hp-code"
+                  name="hp-code"
+                  autocomplete="one-time-code"
+                  autocapitalize="off"
+                  autocorrect="off"
+                  spellcheck="false"
+                  value={hpCode}
+                  oninput={(e) => { hpCode = (e.currentTarget as HTMLInputElement).value }}
+                  disabled={isSubmitting}
+                  autofocus
+                  required
+                />
+              </label>
+              <small class="login-help">{L.hpCodeSent}</small>
+            {:else}
+              <button
+                type="button"
+                class="login-secondary-btn"
+                onclick={() => { hpShowCodeInput = true }}
+              >{L.hpEnterCode}</button>
+            {/if}
+            <button
+              type="button"
+              class="login-hp-back"
+              onclick={() => { hpChallengeToken = undefined; hpCode = ''; hpShowCodeInput = false }}
+            >{L.hpBack}</button>
+          {/if}
         {/if}
 
         {#if backendChoice === 'misskey'}
@@ -361,7 +521,9 @@
           </div>
         {/if}
 
-        <button type="submit" disabled={isSubmitDisabled}>{submitLabel}</button>
+        {#if showSubmitButton}
+          <button type="submit" class="login-submit" disabled={isSubmitDisabled}>{submitLabel}</button>
+        {/if}
         <small class="login-help">{helpText}</small>
         <small class="login-privacy-note">
           <iconify-icon icon="tabler:lock"></iconify-icon>

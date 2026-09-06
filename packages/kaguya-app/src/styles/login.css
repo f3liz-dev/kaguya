@@ -180,13 +180,15 @@
 
 .login-method-tabs button {
   flex: 1;
-  padding: 0.4rem 0.75rem;
+  min-width: 0;
+  padding: 0.4rem 0.5rem;
   border: none;
   background: transparent;
   color: var(--ink-soft);
   border-radius: calc(var(--radius) - 2px);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 500;
+  white-space: nowrap;
   cursor: pointer;
   transition: all var(--duration) var(--ease);
   margin: 0;
@@ -200,6 +202,152 @@
   background: var(--surface);
   color: var(--ink);
   box-shadow: var(--shadow);
+}
+
+/* ── Add-account screen header (back + title) ───────── */
+.login-add-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.login-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: var(--surface-sunken);
+  color: var(--ink);
+  border-radius: var(--radius);
+  font-size: 1.15rem;
+  cursor: pointer;
+  transition: background var(--duration) var(--ease);
+}
+
+.login-back-btn:hover {
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.login-add-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+/* ── hackers.pub magic-link step ────────────────────── */
+.login-hp-sent {
+  margin: var(--space-2) 0 var(--space-3);
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  text-align: center;
+}
+
+/* The explicit "enter a code" affordance — a clear secondary button. */
+.login-secondary-btn {
+  display: block;
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  margin: 0;
+  border: 1px solid var(--border, var(--surface-sunken));
+  background: var(--surface-sunken);
+  color: var(--ink);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--duration) var(--ease);
+}
+
+.login-secondary-btn:hover {
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+/* "Use a different account" — deliberately quiet so the email link / code
+   button stay the focus. Small, muted, a plain text link. */
+.login-hp-back {
+  display: block;
+  width: fit-content;
+  margin: var(--space-4) auto 0;
+  padding: 0.2rem 0.4rem;
+  border: none;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+  text-decoration: underline;
+  opacity: 0.65;
+  cursor: pointer;
+  transition: opacity var(--duration) var(--ease);
+}
+
+.login-hp-back:hover {
+  opacity: 1;
+}
+
+/* Stacked choice buttons on the cross-browser callback. */
+.login-secondary-btn + .login-secondary-btn {
+  margin-top: var(--space-2);
+}
+
+.login-hp-copy-hint {
+  margin: var(--space-3) 0 0;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.login-hp-codebox {
+  margin-top: var(--space-2);
+  text-align: center;
+  font-size: 1.05rem;
+  letter-spacing: 0.05em;
+  user-select: all;
+}
+
+/* Stack the cross-browser choices with even spacing. */
+.login-hp-choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+/* Highlighted (filled) action button — the copy-code path is the default. */
+button.login-primary-btn {
+  display: block;
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  margin: 0;
+  border: 1px solid var(--primary);
+  background: var(--primary);
+  color: var(--primary-ink);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--duration) var(--ease), border-color var(--duration) var(--ease);
+}
+
+button.login-primary-btn:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+
+/* Make the form's confirm/submit button big and easy to tap. */
+button.login-submit {
+  display: flex;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  margin-top: var(--space-2);
+  font-size: 0.95rem;
 }
 
 /* ── Help / privacy text ───────────────────────────── */
