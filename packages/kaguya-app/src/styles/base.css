@@ -99,6 +99,11 @@ input:focus, select:focus, textarea:focus {
 }
 textarea { resize: vertical; min-height: 80px; }
 select { cursor: pointer; appearance: none; }
+input[type="checkbox"], input[type="radio"] {
+  padding: 0;
+  width: 20px; /* tap target; the wrapping label carries the rest */
+  height: 20px;
+}
 label {
   display: block;
   font-size: 0.9rem;

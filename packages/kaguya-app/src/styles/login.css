@@ -370,6 +370,7 @@ button.login-submit {
 }
 
 .login-permission-details summary {
+  padding-block: 2px; /* tap target */
   cursor: pointer;
   color: var(--ink);
   text-decoration: underline;
