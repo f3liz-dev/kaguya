@@ -86,7 +86,10 @@ export function decode(json: unknown): UserProfileView | undefined {
 
   const avatarUrl = fixAvatarUrl(getString(obj, 'avatarUrl') ?? '')
   const hostRaw = obj['host']
-  const host = hostRaw === null || hostRaw === undefined ? undefined : String(hostRaw)
+  // Mastodon carries the host inside acct ("user@host") instead of a field.
+  const acct = getString(obj, 'acct')
+  const acctHost = acct && acct.includes('@') ? acct.slice(acct.indexOf('@') + 1) : undefined
+  const host = hostRaw === null || hostRaw === undefined ? acctHost : String(hostRaw)
 
   // Mastodon puts the bio in `note`, as HTML; Misskey's `description` is MFM.
   const misskeyDescription = getString(obj, 'description')

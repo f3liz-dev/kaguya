@@ -5,6 +5,11 @@ import type { UserView } from '../user/userView'
 import type { FileView } from '../file/fileView'
 import { asObj, getString, getBool } from '../../infra/jsonUtils'
 
+function hostFromAcct(acct: string | undefined): string | undefined {
+  const at = acct?.indexOf('@') ?? -1
+  return at > 0 ? acct!.slice(at + 1) : undefined
+}
+
 function decodeAccount(json: unknown): UserView | undefined {
   const obj = asObj(json)
   if (!obj) return undefined
@@ -16,7 +21,10 @@ function decodeAccount(json: unknown): UserView | undefined {
     name: getString(obj, 'displayName') || username,
     username,
     avatarUrl: getString(obj, 'avatar') ?? '',
-    host: undefined,
+    // Mastodon has no host field; a remote account's acct is "user@host",
+    // a local one is bare. Without this the profile link points at our own
+    // instance and the lookup there fails.
+    host: hostFromAcct(getString(obj, 'acct')),
   }
 }
 
