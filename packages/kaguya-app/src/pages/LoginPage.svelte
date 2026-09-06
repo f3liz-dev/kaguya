@@ -279,21 +279,21 @@
   }
 </script>
 
-<main class="container login-page">
+<main class="login-page px-4 py-8">
   <article class="login-card">
     <header>
-      <h1 class="login-title">{L.appTitle}</h1>
-      <p class="login-subtitle">{L.appSubtitle}</p>
+      <h1 class="login-title mb-1">{L.appTitle}</h1>
+      <p class="login-subtitle mb-4">{L.appSubtitle}</p>
     </header>
 
     {#if isValidating}
-      <div class="login-validating">{L.validating}</div>
+      <div class="login-validating py-4">{L.validating}</div>
     {:else if hasValidAccounts && !showAddAccount}
-      <div class="login-account-switcher">
+      <div class="login-account-switcher gap-2">
         {#each validAccounts as account (account.id)}
           <button
             type="button"
-            class="login-account-item"
+            class="login-account-item p-3 gap-3"
             onclick={() => { void AuthManager.switchAccount(account.id).then((r) => { if (r.ok) navigateTo('/') }) }}
           >
             {#if account.avatarUrl}
@@ -306,7 +306,7 @@
         {/each}
         <button
           type="button"
-          class="login-account-item login-account-add"
+          class="login-account-item login-account-add p-3 gap-2"
           onclick={() => { showAddAccount = !showAddAccount }}
         >
           <span class="login-account-add-icon">＋</span>
@@ -316,14 +316,14 @@
     {/if}
 
     {#if invalidAccounts.length > 0 && !showAddAccount}
-      <div class="login-invalid-accounts">
-        <p class="login-invalid-accounts-title">{L.invalidTokens}</p>
+      <div class="login-invalid-accounts mt-4 p-3">
+        <p class="login-invalid-accounts-title mb-2">{L.invalidTokens}</p>
         {#each invalidAccounts as account (account.id)}
-          <div class="login-invalid-account-item">
+          <div class="login-invalid-account-item py-1">
             <span>{displayLabel(account)}</span>
             <button
               type="button"
-              class="login-invalid-account-remove"
+              class="login-invalid-account-remove px-2 py-1"
               onclick={() => handleRevokeAccount(account.id)}
             >
               {L.remove}
@@ -334,16 +334,16 @@
     {/if}
 
     {#if !isValidating && (!hasValidAccounts || showAddAccount)}
-      <form onsubmit={handleSubmit}>
+      <form class="mt-4" onsubmit={handleSubmit}>
         {#if showAddAccount}
-          <div class="login-add-header">
+          <div class="login-add-header gap-2 mb-3">
             <button type="button" class="login-back-btn" onclick={closeAddAccount} aria-label={L.back}>
               <iconify-icon icon="tabler:arrow-left"></iconify-icon>
             </button>
             <span class="login-add-title">{L.accountAdd}</span>
           </div>
         {/if}
-        <div class="login-method-tabs">
+        <div class="login-method-tabs mt-2 mb-4">
           <button
             class={backendChoice === 'misskey' ? 'active' : ''}
             onclick={() => { backendChoice = 'misskey' }}
@@ -367,7 +367,7 @@
         </div>
 
         {#if backendChoice === 'bluesky'}
-          <label for="bluesky-handle">
+          <label class="mb-4" for="bluesky-handle">
             {L.blueskyHandle}
             <input
               type="text"
@@ -382,7 +382,7 @@
             />
           </label>
         {:else}
-          <label for="instance">
+          <label class="mb-4" for="instance">
             {L.instance}
             <input
               type="text"
@@ -400,7 +400,7 @@
 
         {#if backendChoice === 'hackerspub'}
           {#if !hpChallengeToken}
-            <div class="login-method-tabs">
+            <div class="login-method-tabs mt-2 mb-4">
               <button
                 class={!hpUseEmail ? 'active' : ''}
                 onclick={() => { hpUseEmail = false }}
@@ -412,7 +412,7 @@
                 type="button"
               >{L.hpUseEmailToggle}</button>
             </div>
-            <label for="hp-identifier">
+            <label class="mb-4" for="hp-identifier">
               {hpUseEmail ? L.hpEmail : L.hpUsername}
               <input
                 type={hpUseEmail ? 'email' : 'text'}
@@ -426,9 +426,9 @@
               />
             </label>
           {:else}
-            <p class="login-hp-sent">{L.hpLinkSent}</p>
+            <p class="login-hp-sent mt-2 mb-3">{L.hpLinkSent}</p>
             {#if hpShowCodeInput}
-              <label for="hp-code">
+              <label class="mb-4" for="hp-code">
                 {L.hpCodeLabel}
                 <input
                   type="text"
@@ -445,24 +445,24 @@
                   required
                 />
               </label>
-              <small class="login-help">{L.hpCodeSent}</small>
+              <small class="login-help mt-3">{L.hpCodeSent}</small>
             {:else}
               <button
                 type="button"
-                class="login-secondary-btn"
+                class="login-secondary-btn px-3 py-2"
                 onclick={() => { hpShowCodeInput = true }}
               >{L.hpEnterCode}</button>
             {/if}
             <button
               type="button"
-              class="login-hp-back"
+              class="login-hp-back mt-4 px-2 py-1"
               onclick={() => { hpChallengeToken = undefined; hpCode = ''; hpShowCodeInput = false }}
             >{L.hpBack}</button>
           {/if}
         {/if}
 
         {#if backendChoice === 'misskey'}
-          <div class="login-method-tabs">
+          <div class="login-method-tabs mt-2 mb-4">
             <button
               class={loginMethod === 'oauth2' ? 'active' : ''}
               onclick={() => { loginMethod = 'oauth2' }}
@@ -482,7 +482,7 @@
         {/if}
 
         {#if backendChoice === 'misskey' && loginMethod === 'token'}
-          <label for="token">
+          <label class="mb-4" for="token">
             {L.accessToken}
             <input
               type="password"
@@ -496,7 +496,7 @@
             />
           </label>
         {:else if backendChoice === 'misskey'}
-          <label for="permission-mode">
+          <label class="mb-4" for="permission-mode">
             {L.permissionMode}
             <select
               id="permission-mode"
@@ -507,7 +507,7 @@
               <option value="standard">{L.permissionStandard}</option>
               <option value="readonly">{L.permissionReadonly}</option>
             </select>
-            <details class="login-permission-details">
+            <details class="login-permission-details mt-2">
               <summary>{L.permissionDetailsSummary}</summary>
               <p>{L.permissionStandardDetail}</p>
               <p>{L.permissionReadonlyDetail}</p>
@@ -516,16 +516,16 @@
         {/if}
 
         {#if errorMessage}
-          <div class="error-message" role="alert">
+          <div class="error-message px-4 py-3 mb-4" role="alert">
             <p>{errorMessage}</p>
           </div>
         {/if}
 
         {#if showSubmitButton}
-          <button type="submit" class="login-submit" disabled={isSubmitDisabled}>{submitLabel}</button>
+          <button type="submit" class="login-submit px-4 py-3 mt-2" disabled={isSubmitDisabled}>{submitLabel}</button>
         {/if}
-        <small class="login-help">{helpText}</small>
-        <small class="login-privacy-note">
+        <small class="login-help mt-3">{helpText}</small>
+        <small class="login-privacy-note mt-3 gap-1">
           <iconify-icon icon="tabler:lock"></iconify-icon>
           {L.tokenPrivacy}
         </small>

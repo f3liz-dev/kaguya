@@ -6,7 +6,6 @@
   align-items: center;
   justify-content: center;
   min-height: 100dvh;
-  padding: 2rem;
 }
 
 .login-card {
@@ -18,23 +17,21 @@
   border: 1px solid var(--border);
 }
 
-.login-card header {
+.login-card > header {
   text-align: center;
-  padding-bottom: 0;
+  padding: 0;
 }
 
 .login-title {
-  color: var(--primary);
+  color: var(--primary-text);
   font-size: 1.75rem;
   font-weight: 700;
-  margin-bottom: 0.25rem;
   letter-spacing: 0.08em;
 }
 
 .login-subtitle {
   color: var(--ink-soft);
   font-size: 0.85rem;
-  margin-bottom: 0;
 }
 
 .login-card footer {
@@ -47,22 +44,18 @@
   text-align: center;
   color: var(--ink-soft);
   font-size: 0.9rem;
-  padding: var(--space-4) 0;
 }
 
 /* ── Account switcher ──────────────────────────────── */
 .login-account-switcher {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
 }
 
 .login-account-item {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
   width: 100%;
-  padding: var(--space-3);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -101,7 +94,6 @@
   justify-content: center;
   border-style: dashed;
   color: var(--ink-soft);
-  gap: var(--space-2);
   font-size: 0.85rem;
 }
 
@@ -118,10 +110,8 @@
 
 /* ── Invalid accounts ──────────────────────────────── */
 .login-invalid-accounts {
-  margin-top: var(--space-4);
   border: 1px solid var(--color-error);
   border-radius: var(--radius);
-  padding: var(--space-3);
   background: var(--color-error-bg);
 }
 
@@ -129,26 +119,22 @@
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--color-error);
-  margin-bottom: var(--space-2);
 }
 
 .login-invalid-account-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-1) 0;
   font-size: 0.85rem;
 }
 
 .login-invalid-account-remove {
-  padding: 0.2rem 0.6rem;
   font-size: 0.8rem;
   background: transparent;
   border: 1px solid var(--color-error);
   color: var(--color-error);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  margin: 0;
   width: auto;
   transition: background var(--duration) var(--ease),
               color var(--duration) var(--ease);
@@ -159,29 +145,19 @@
   color: white;
 }
 
-/* ── Form ──────────────────────────────────────────── */
-.login-card form {
-  margin-top: var(--space-4);
-}
-
-.login-card form label {
-  margin-bottom: var(--space-4);
-}
-
 /* ── Backend / method tabs ─────────────────────────── */
 .login-method-tabs {
   display: flex;
   gap: var(--space-1);
-  margin: var(--space-2) 0 var(--space-4);
   background: var(--surface-sunken);
   border-radius: var(--radius);
-  padding: 3px;
+  padding: var(--space-1);
 }
 
 .login-method-tabs button {
   flex: 1;
   min-width: 0;
-  padding: 0.4rem 0.5rem;
+  padding: var(--space-2);
   border: none;
   background: transparent;
   color: var(--ink-soft);
@@ -208,8 +184,6 @@
 .login-add-header {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
 }
 
 .login-back-btn {
@@ -219,7 +193,6 @@
   width: 2rem;
   height: 2rem;
   padding: 0;
-  margin: 0;
   border: none;
   background: var(--surface-sunken);
   color: var(--ink);
@@ -242,7 +215,6 @@
 
 /* ── hackers.pub magic-link step ────────────────────── */
 .login-hp-sent {
-  margin: var(--space-2) 0 var(--space-3);
   color: var(--ink-soft);
   font-size: 0.9rem;
   line-height: 1.6;
@@ -253,8 +225,6 @@
 .login-secondary-btn {
   display: block;
   width: 100%;
-  padding: 0.55rem 0.75rem;
-  margin: 0;
   border: 1px solid var(--border, var(--surface-sunken));
   background: var(--surface-sunken);
   color: var(--ink);
@@ -275,8 +245,7 @@
 .login-hp-back {
   display: block;
   width: fit-content;
-  margin: var(--space-4) auto 0;
-  padding: 0.2rem 0.4rem;
+  margin-inline: auto;
   border: none;
   background: none;
   color: var(--ink-soft);
@@ -289,11 +258,6 @@
 
 .login-hp-back:hover {
   opacity: 1;
-}
-
-/* Stacked choice buttons on the cross-browser callback. */
-.login-secondary-btn + .login-secondary-btn {
-  margin-top: var(--space-2);
 }
 
 .login-hp-copy-hint {
@@ -345,27 +309,22 @@ button.login-primary-btn:hover {
 button.login-submit {
   display: flex;
   width: 100%;
-  padding: 0.75rem 1rem;
-  margin-top: var(--space-2);
   font-size: 0.95rem;
 }
 
 /* ── Help / privacy text ───────────────────────────── */
 .login-help {
   display: block;
-  margin-top: var(--space-3);
   color: var(--ink-soft);
   font-size: 0.8rem;
   line-height: 1.5;
 }
 
 .login-privacy-note {
-  margin-top: var(--space-3);
   font-size: 0.8rem;
   color: var(--ink-soft);
   display: flex;
   align-items: center;
-  gap: 0.3rem;
 }
 
 /* ── Success / error messages ──────────────────────── */
@@ -389,8 +348,6 @@ button.login-submit {
   background: var(--color-error-bg);
   border: 1px solid var(--color-error);
   border-radius: var(--radius);
-  padding: var(--space-3) var(--space-4);
-  margin-bottom: var(--space-4);
 }
 
 .error-message p {
@@ -408,18 +365,18 @@ button.login-submit {
 
 /* ── Permission details ────────────────────────────── */
 .login-permission-details {
-  margin-top: var(--space-2);
   font-size: 0.85rem;
   color: var(--ink-soft);
 }
 
 .login-permission-details summary {
   cursor: pointer;
-  color: var(--secondary);
+  color: var(--ink);
+  text-decoration: underline;
 }
 
 .login-permission-details p {
-  margin: 0.3rem 0;
+  margin: var(--space-1) 0;
   line-height: 1.5;
 }
 
