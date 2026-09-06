@@ -125,7 +125,7 @@
 
 .settings-danger-btn {
   background: var(--color-error);
-  color: white;
+  color: var(--color-error-ink);
   border: none;
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-sm);
@@ -135,7 +135,7 @@
 }
 
 .settings-danger-btn:hover {
-  background: oklch(50% 0.18 25);
+  background: color-mix(in oklch, var(--color-error) 85%, var(--ink));
 }
 
 .settings-btn {
@@ -373,7 +373,7 @@ a.settings-reset-link {
 }
 
 .user-banner-empty {
-  background: linear-gradient(135deg, #7ba98b 0%, #6b9a7cbb 100%);
+  background: linear-gradient(135deg, var(--secondary) 0%, var(--secondary-hover) 100%);
 }
 
 .user-banner-image {
@@ -407,7 +407,7 @@ a.settings-reset-link {
 }
 
 .user-avatar-placeholder {
-  background: linear-gradient(135deg, #7ba98b 0%, #6b9a7cbb 100%);
+  background: linear-gradient(135deg, var(--secondary) 0%, var(--secondary-hover) 100%);
 }
 
 .user-info {
@@ -442,7 +442,7 @@ a.settings-reset-link {
   display: inline-block;
   margin-top: var(--space-1);
   padding: 0.15rem var(--space-2);
-  background: oklch(55% 0.01 67 / 0.10);
+  background: var(--fill-soft);
   border-radius: var(--radius);
   font-size: 0.75rem;
   color: var(--secondary);

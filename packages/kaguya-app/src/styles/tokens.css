@@ -12,7 +12,7 @@
 :root {
   /* ── Core surfaces ──────────────────────────────────── */
   --bg:             oklch(97.6% 0.008 88);   /* warm off-white page */
-  --surface:        oklch(100%  0     0);    /* card / popover */
+  --surface:        oklch(99.2% 0.005 88);   /* card / popover — a shade of paper, not pure white */
   --surface-sunken: oklch(94.5% 0.010 86);   /* sidebar / header / bottom-nav */
   --surface-raised: oklch(98.6% 0.006 86);   /* dropdown / tooltip */
 
@@ -32,21 +32,34 @@
   --primary-ink:   oklch(20.0% 0.012 70);    /* dark text on warm primary */
   --primary-text:  oklch(50.0% 0.060 85);    /* the same beige, dark enough to read as text */
 
-  --secondary:       oklch(69.3% 0.066 155.7); /* sage */
-  --secondary-hover: oklch(63.2% 0.066 155.7);
-  --secondary-focus: oklch(69.3% 0.066 155.7 / 0.20);
+  /* 若葉 — connection: links, mentions, hashtags, the live dot, empty avatars.
+     The surface colour and the text colour are two values on purpose. */
+  --secondary:       oklch(60.0% 0.080 155);
+  --secondary-hover: oklch(54.0% 0.080 155);
+  --secondary-focus: oklch(60.0% 0.080 155 / 0.20);
   --secondary-ink:   oklch(100% 0 0);
+  --secondary-text:  oklch(47.0% 0.090 158);  /* 6.4:1 on --surface */
 
   /* ── Semantic colors ────────────────────────────────── */
-  --color-error:      oklch(57.5% 0.18  25);
-  --color-error-bg:   oklch(94.0% 0.03  25);
-  --color-success:    oklch(50.0% 0.12 155);   /* 5:1 on white; also the mention colour */
-  --color-success-bg: oklch(95.0% 0.03 155);
-  --color-warning:    oklch(78.0% 0.16  85);
-  --color-warning-bg: oklch(95.0% 0.04  85);
-  --color-info:       oklch(58.0% 0.06 260);
-  --color-info-bg:    oklch(95.0% 0.015 260);
-  --color-live:       oklch(65.0% 0.17 160);
+  /* Three hues carry meaning: 木目金 (primary — this app, chosen things),
+     若葉 (secondary — connection), 煉瓦 (error — undo / failed). The rest
+     are aliases so the dark block only restates the three. */
+  --color-error:      oklch(48.0% 0.14  28);   /* brick, warm enough for paper */
+  --color-error-ink:  oklch(100% 0 0);         /* text on a brick button */
+  --color-error-bg:   color-mix(in oklch, var(--color-error) 12%, transparent);
+  --color-success:    var(--secondary-text);
+  --color-success-bg: color-mix(in oklch, var(--secondary) 12%, transparent);
+  --color-warning:    var(--primary-hover);
+  --color-warning-bg: var(--primary-focus);
+  --color-info:       var(--ink-soft);
+  --color-info-bg:    var(--fill-soft);
+  --color-live:       var(--secondary);
+
+  /* 洗い — ink diluted. Hover washes and chip grounds stay in the paper family
+     and flip with the theme, instead of a black or white at some opacity. */
+  --fill-soft:   color-mix(in oklch, var(--ink)  6%, transparent);
+  --fill-hover:  color-mix(in oklch, var(--ink) 11%, transparent);
+  --fill-active: color-mix(in oklch, var(--ink) 14%, transparent);
 
   /* Unread-attention badge — neutral by design. Not an error. */
   --badge-attention:     var(--ink-soft);
@@ -54,7 +67,7 @@
 
   /* ── Overlay ────────────────────────────────────────── */
   --overlay-bg:          oklch(0%   0 0 / 0.50);
-  --overlay-hover:       oklch(0%   0 0 / 0.06);
+  --overlay-hover:       var(--fill-soft);
   --overlay-hover-light: oklch(100% 0 0 / 0.08);
 
   /* ── Shadows — two values, calm ─────────────────────── */
@@ -209,21 +222,16 @@
     --primary-hover: oklch(73.0% 0.041 80.8);
     --primary-focus: oklch(79.2% 0.041 80.8 / 0.20);
     --primary-ink:   oklch(15.0% 0.010 84.6);
-  --primary-text:  oklch(82.0% 0.050 82);
     --primary-text:  oklch(82.0% 0.050 82);
 
-    --color-error:      oklch(65.0% 0.16  25);
-    --color-error-bg:   oklch(25.0% 0.04  25);
-    --color-success:    oklch(68.0% 0.12 155);
-    --color-success-bg: oklch(25.0% 0.04 155);
-    --color-warning:    oklch(80.0% 0.14  85);
-    --color-warning-bg: oklch(28.0% 0.04  85);
-    --color-info:       oklch(65.0% 0.06 260);
-    --color-info-bg:    oklch(25.0% 0.02 260);
-    --color-live:       oklch(70.0% 0.15 160);
+    --secondary:       oklch(68.0% 0.080 155);
+    --secondary-hover: oklch(62.0% 0.080 155);
+    --secondary-focus: oklch(68.0% 0.080 155 / 0.20);
+    --secondary-text:  oklch(78.0% 0.090 158);
+    --color-error:     oklch(70.0% 0.120  30);
+    --color-error-ink: oklch(15.0% 0.020  30);
 
     --overlay-bg:          oklch(0%   0 0 / 0.65);
-    --overlay-hover:       oklch(100% 0 0 / 0.06);
     --overlay-hover-light: oklch(100% 0 0 / 0.08);
 
     --shadow:       0 1px 2px oklch(0% 0 0 / 0.25);
@@ -250,19 +258,16 @@
   --primary-hover: oklch(73.0% 0.041 80.8);
   --primary-focus: oklch(79.2% 0.041 80.8 / 0.20);
   --primary-ink:   oklch(15.0% 0.010 84.6);
+  --primary-text:  oklch(82.0% 0.050 82);
 
-  --color-error:      oklch(65.0% 0.16  25);
-  --color-error-bg:   oklch(25.0% 0.04  25);
-  --color-success:    oklch(68.0% 0.12 155);
-  --color-success-bg: oklch(25.0% 0.04 155);
-  --color-warning:    oklch(80.0% 0.14  85);
-  --color-warning-bg: oklch(28.0% 0.04  85);
-  --color-info:       oklch(65.0% 0.06 260);
-  --color-info-bg:    oklch(25.0% 0.02 260);
-  --color-live:       oklch(70.0% 0.15 160);
+  --secondary:       oklch(68.0% 0.080 155);
+  --secondary-hover: oklch(62.0% 0.080 155);
+  --secondary-focus: oklch(68.0% 0.080 155 / 0.20);
+  --secondary-text:  oklch(78.0% 0.090 158);
+  --color-error:     oklch(70.0% 0.120  30);
+  --color-error-ink: oklch(15.0% 0.020  30);
 
   --overlay-bg:          oklch(0%   0 0 / 0.65);
-  --overlay-hover:       oklch(100% 0 0 / 0.06);
   --overlay-hover-light: oklch(100% 0 0 / 0.08);
 
   --shadow:       0 1px 2px oklch(0% 0 0 / 0.25);

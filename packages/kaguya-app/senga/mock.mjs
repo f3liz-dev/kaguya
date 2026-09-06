@@ -136,7 +136,7 @@ export function answer(endpoint, body) {
 // index.html の頭で localStorage に入れる。origin は serve.mjs の
 // 自分自身なので、`/api/...` はそのまま mock に届く。
 
-export function seedScript(origin, locale) {
+export function seedScript(origin, locale, theme) {
   const account = {
     id: `hinata@${origin}`,
     origin,
@@ -158,8 +158,12 @@ export function seedScript(origin, locale) {
     'kaguya:accessToken': 'senga',
     'kaguya:streamingEnabled': 'false',
     'kaguya:locale': locale,
+    ...(theme ? { 'kaguya:theme': theme } : {}),
   };
+  // The theme attribute is also set here, before the app's own init runs, so
+  // the first paint is already the theme we are measuring.
+  const attr = theme ? `document.documentElement.setAttribute('data-theme', ${JSON.stringify(theme)});` : '';
   return `<script>${Object.entries(kv)
     .map(([k, v]) => `localStorage.setItem(${JSON.stringify(k)}, ${JSON.stringify(v)});`)
-    .join('')}</script>`;
+    .join('')}${attr}</script>`;
 }

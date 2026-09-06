@@ -56,7 +56,7 @@ export function serve(root, port, { locale = 'ja' } = {}) {
         const ext = path.extname(file);
         if (ext === '.html') {
           const lang = url.searchParams.get('lang') ?? locale;
-          const seed = url.searchParams.has('nologin') ? '' : seedScript(origin, lang);
+          const seed = url.searchParams.has('nologin') ? '' : seedScript(origin, lang, url.searchParams.get('theme') ?? undefined);
           body = body.toString().replace('<head>', `<head>${seed}`);
         }
         res.writeHead(200, { 'content-type': MIME[ext] ?? 'application/octet-stream' });

@@ -8,8 +8,8 @@
 
 /* Code blocks */
 .mfm-code-block {
-  background: var(--mfm-code-bg, #fcfaf8);
-  border: 1px solid var(--mfm-code-border, #f2ede8);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1em;
   overflow-x: auto;
@@ -24,7 +24,7 @@
 
 /* Inline code */
 code {
-  background: var(--mfm-inline-code-bg, #fcfaf8);
+  background: var(--surface-sunken);
   padding: 0.2em 0.4em;
   border-radius: 6px;
   font-family: 'Courier New', monospace;
@@ -33,10 +33,10 @@ code {
 
 /* Quote */
 .mfm-quote {
-  border-left: 4px solid var(--mfm-quote-border, #e5b7b7);
+  border-left: 4px solid var(--border-strong);
   padding-left: 1em;
   margin: 0.5em 0;
-  color: var(--mfm-quote-color, #8b8178);
+  color: var(--ink-soft);
 }
 
 /* Center */
@@ -48,7 +48,7 @@ code {
 /* Links */
 .mfm-url,
 .mfm-link {
-  color: var(--pico-primary, #d4a5a5);
+  color: var(--secondary-text);
   text-decoration: none;
 }
 
@@ -63,7 +63,7 @@ code {
 
 /* Mentions */
 .mfm-mention {
-  color: var(--mention-color, var(--color-success));
+  color: var(--secondary-text);
   text-decoration: none;
   font-weight: 500;
 }
@@ -74,7 +74,7 @@ code {
 
 /* Hashtags */
 .mfm-hashtag {
-  color: var(--pico-primary, #d4a5a5);
+  color: var(--secondary-text);
   text-decoration: none;
   font-weight: 500;
 }
@@ -127,16 +127,16 @@ code {
   align-items: center;
   gap: 0.5em;
   padding: 0.5em;
-  background: var(--mfm-search-bg, #fcfaf8);
-  border: 1px solid var(--mfm-code-border, #f2ede8);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
   border-radius: 12px;
   margin: 0.5em 0;
 }
 
 .mfm-search-button {
   padding: 0.3em 1em;
-  background: var(--pico-primary, #e5b7b7);
-  color: white;
+  background: var(--primary);
+  color: var(--primary-ink);
   border: none;
   border-radius: 20px;
   cursor: pointer;
@@ -144,7 +144,7 @@ code {
 }
 
 .mfm-search-button:hover {
-  background: var(--pico-primary-hover, #c99393);
+  background: var(--primary-hover);
 }
 
 /* MFM Functions/Effects */
@@ -309,25 +309,6 @@ code {
 }
 
 /* Dark mode adjustments */
-@media (prefers-color-scheme: dark) {
-  .mfm-code-block {
-    background: var(--mfm-code-bg, #2d2d2d);
-    border-color: var(--mfm-code-border, #444);
-  }
-
-  code {
-    background: var(--mfm-inline-code-bg, #2d2d2d);
-  }
-
-  .mfm-quote {
-    border-left-color: var(--mfm-quote-border, #666);
-    color: var(--mfm-quote-color, #aaa);
-  }
-
-  .mfm-search {
-    background: var(--mfm-search-bg, #2d2d2d);
-  }
-}
 
 /* Responsive adjustments */
 @media (max-width: 768px) {

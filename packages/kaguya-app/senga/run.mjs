@@ -4,6 +4,7 @@
 //   node senga/run.mjs --only home        # 一画面だけ
 //   node senga/run.mjs --lang ko          # 韓国語で
 //   node senga/run.mjs --width 390        # 幅ひとつだけ
+//   node senga/run.mjs --theme dark       # 暗いテーマで
 //   SENGA_DOWN=1 node senga/run.mjs --only home   # 箱が落ちているとき
 //
 // 先に `pnpm run build`。箱は要らない ── dist を senga/serve.mjs で出して、
@@ -32,6 +33,7 @@ const opt = (k) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : un
 const only = opt('--only');
 const lang = opt('--lang') ?? 'ja';
 const widthArg = opt('--width');
+const theme = opt('--theme');
 const SENGA = process.env.SENGA ?? path.join(os.homedir(), 'repos/senga/target/release/senga');
 const PORT = 4183;
 const OUT = path.resolve('senga/out');
@@ -52,8 +54,8 @@ try {
     if (only && name !== only) continue;
     for (const [w, [width, height, cols]] of Object.entries(WIDTHS)) {
       if (widthArg && w !== widthArg) continue;
-      const base = path.join(OUT, `${name}-${lang}-${w}`);
-      const url = `http://localhost:${PORT}${route}${route.includes('?') ? '&' : '?'}lang=${lang}`;
+      const base = path.join(OUT, `${name}-${lang}${theme ? '-' + theme : ''}-${w}`);
+      const url = `http://localhost:${PORT}${route}${route.includes('?') ? '&' : '?'}lang=${lang}${theme ? '&theme=' + theme : ''}`;
       const txt = await run(SENGA, [url, '--width', String(width), '--height', String(height), '--cols', String(cols), '--wait', '2500', '--png', `${base}.png`]);
       await writeFile(`${base}.txt`, txt);
       const findings = txt.split('## Findings')[1]?.split('## Elements')[0]?.trim().split('\n').length ?? 0;
