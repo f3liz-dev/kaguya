@@ -1,15 +1,21 @@
 // SPDX-License-Identifier: MPL-2.0
 //
-// Thin adapter around masto.js.
+// Thin adapter around @f3liz/mazemaze-api-mastodon (the generated, typed
+// Mastodon REST client). This is the ONLY place in the app that knows about the
+// mazemaze Mastodon surface. Everything here returns idiomatic Result<T, E>.
 //
-// Mirrors the structure of misskey.ts: this is the ONLY place in the app
-// that is allowed to know about masto.js internals. Everything here returns
-// idiomatic TypeScript types via Result<T, E> from infra/result.ts.
+// Two boundary jobs live here:
+//  1. Transport: the generated `send`s call a fetchFn (method, url, body); we
+//     inject one that prefixes the origin, adds the bearer token, omits a body
+//     on GET, passes FormData through for media, and turns HTTP errors into a
+//     rejected promise.
+//  2. Casing: the Mastodon wire format is snake_case, and the generated decoder
+//     preserves it, but the rest of the app (the note decoder, the streaming
+//     path) expects camelCase — masto.js used to camelCase for us. So every
+//     result is run through transformKeysToCamel, the same transform the
+//     WebSocket path already applies, keeping REST and streaming consistent.
 
-import {
-  createRestAPIClient,
-} from 'masto'
-import type { mastodon } from 'masto'
+import * as M from '@f3liz/mazemaze-api-mastodon'
 import { measureApiCall } from '../infra/perfMonitor'
 import { ok, err } from '../infra/result'
 import type { Result } from '../infra/result'
@@ -17,7 +23,7 @@ import type { Result } from '../infra/result'
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type MastodonClient = {
-  rest: mastodon.rest.Client
+  m: M.MastodonClient
   origin: string
   token: string
 }
@@ -32,13 +38,40 @@ export type TimelineType =
   | 'global'
   | { kind: 'list'; id: string }
 
-export type Visibility = mastodon.v1.StatusVisibility
+export type Visibility = M.StatusVisibility
 
 // ─── Core functions ──────────────────────────────────────────────────────────
 
+// The transport the generated sends call. Builds the full URL, carries the
+// token, leaves GET bodyless, streams FormData straight through for media, and
+// rejects on a non-2xx so `call` can surface it as Err.
+function makeFetch(origin: string, token: string): M.FetchFn {
+  return async (method, url, body) => {
+    const isForm = typeof FormData !== 'undefined' && body instanceof FormData
+    const noBody = method === 'GET' || method === 'HEAD'
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
+    if (!isForm && !noBody) headers['Content-Type'] = 'application/json'
+    const res = await fetch(origin + url, {
+      method,
+      headers,
+      body: noBody ? undefined : isForm ? (body as FormData) : JSON.stringify(body ?? {}),
+    })
+    if (!res.ok) {
+      let message = `Mastodon ${res.status}`
+      try {
+        const j = await res.json()
+        if (j && typeof j.error === 'string') message = j.error
+      } catch { /* keep the status message */ }
+      throw new Error(message)
+    }
+    if (res.status === 204) return undefined
+    return res.json()
+  }
+}
+
 export function connect(origin: string, token: string): MastodonClient {
-  const rest = createRestAPIClient({ url: origin, accessToken: token })
-  return { rest, origin, token }
+  const m = M.connect(origin, { token, fetch: makeFetch(origin, token) })
+  return { m, origin, token }
 }
 
 export function close(_client: MastodonClient): void {
@@ -46,44 +79,43 @@ export function close(_client: MastodonClient): void {
   // manages its own WebSocket via unsubscribe().
 }
 
-async function wrap<T>(label: string, fn: () => PromiseLike<T>): Promise<Result<T, string>> {
+// Run a generated call, recase the (snake_case) result to camelCase, and fold
+// transport/HTTP failures into a Result.
+async function call(label: string, p: Promise<unknown>): Promise<Result<unknown, string>> {
   try {
-    const value = await measureApiCall(label, () => Promise.resolve(fn()))
-    return ok(value)
+    const value = await measureApiCall(label, () => p)
+    return ok(transformKeysToCamel(value))
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : String(e)
-    return err(message)
+    return err(e instanceof Error ? e.message : String(e))
   }
 }
 
 // ─── Accounts ────────────────────────────────────────────────────────────────
 
 export const Accounts = {
-  verifyCredentials: (client: MastodonClient): Promise<Result<mastodon.v1.AccountCredentials, string>> =>
-    wrap('accounts/verify_credentials', () => client.rest.v1.accounts.verifyCredentials()),
+  verifyCredentials: (client: MastodonClient): Promise<Result<unknown, string>> =>
+    call('accounts/verify_credentials', M.Accounts.verifyCredentials(client.m)),
 
-  show: (client: MastodonClient, id: string): Promise<Result<mastodon.v1.Account, string>> =>
-    wrap('accounts/show', () => client.rest.v1.accounts.$select(id).fetch()),
+  show: (client: MastodonClient, id: string): Promise<Result<unknown, string>> =>
+    call('accounts/show', M.Accounts.show(client.m, id)),
 
   statuses: (
     client: MastodonClient,
     id: string,
     opts?: { limit?: number; excludeReplies?: boolean; sinceId?: string; maxId?: string },
-  ): Promise<Result<mastodon.v1.Status[], string>> =>
-    wrap('accounts/statuses', () =>
-      client.rest.v1.accounts.$select(id).statuses.list({
-        limit: opts?.limit,
-        excludeReplies: opts?.excludeReplies,
-        sinceId: opts?.sinceId,
-        maxId: opts?.maxId,
-      }),
-    ),
+  ): Promise<Result<unknown, string>> =>
+    call('accounts/statuses', M.Accounts.statuses(client.m, id, {
+      limit: opts?.limit,
+      excludeReplies: opts?.excludeReplies,
+      sinceId: opts?.sinceId,
+      maxId: opts?.maxId,
+    })),
 
-  follow: (client: MastodonClient, id: string): Promise<Result<mastodon.v1.Relationship, string>> =>
-    wrap('accounts/follow', () => client.rest.v1.accounts.$select(id).follow()),
+  follow: (client: MastodonClient, id: string): Promise<Result<unknown, string>> =>
+    call('accounts/follow', M.Accounts.follow(client.m, id)),
 
-  unfollow: (client: MastodonClient, id: string): Promise<Result<mastodon.v1.Relationship, string>> =>
-    wrap('accounts/unfollow', () => client.rest.v1.accounts.$select(id).unfollow()),
+  unfollow: (client: MastodonClient, id: string): Promise<Result<unknown, string>> =>
+    call('accounts/unfollow', M.Accounts.unfollow(client.m, id)),
 }
 
 // ─── Statuses ────────────────────────────────────────────────────────────────
@@ -97,44 +129,44 @@ export const Statuses = {
       spoilerText?: string
       inReplyToId?: string
       mediaIds?: string[]
+      language?: string
     },
-  ): Promise<Result<mastodon.v1.Status, string>> =>
-    wrap('statuses/create', () =>
-      client.rest.v1.statuses.create({
-        status: text ?? '',
-        visibility: opts?.visibility,
-        spoilerText: opts?.spoilerText,
-        inReplyToId: opts?.inReplyToId,
-        mediaIds: opts?.mediaIds,
-      }),
-    ),
+  ): Promise<Result<unknown, string>> =>
+    call('statuses/create', M.Statuses.create(client.m, {
+      status: text ?? '',
+      visibility: opts?.visibility,
+      spoilerText: opts?.spoilerText,
+      inReplyToId: opts?.inReplyToId,
+      mediaIds: opts?.mediaIds,
+      language: opts?.language,
+    })),
 
-  show: (client: MastodonClient, id: string): Promise<Result<mastodon.v1.Status, string>> =>
-    wrap('statuses/show', () => client.rest.v1.statuses.$select(id).fetch()),
+  show: (client: MastodonClient, id: string): Promise<Result<unknown, string>> =>
+    call('statuses/show', M.Statuses.show(client.m, id)),
 
-  context: (client: MastodonClient, id: string): Promise<Result<mastodon.v1.Context, string>> =>
-    wrap('statuses/context', () => client.rest.v1.statuses.$select(id).context.fetch()),
+  context: (client: MastodonClient, id: string): Promise<Result<unknown, string>> =>
+    call('statuses/context', M.Statuses.context(client.m, id)),
 
-  favourite: (client: MastodonClient, id: string): Promise<Result<mastodon.v1.Status, string>> =>
-    wrap('statuses/favourite', () => client.rest.v1.statuses.$select(id).favourite()),
+  favourite: (client: MastodonClient, id: string): Promise<Result<unknown, string>> =>
+    call('statuses/favourite', M.Statuses.favourite(client.m, id)),
 
-  unfavourite: (client: MastodonClient, id: string): Promise<Result<mastodon.v1.Status, string>> =>
-    wrap('statuses/unfavourite', () => client.rest.v1.statuses.$select(id).unfavourite()),
+  unfavourite: (client: MastodonClient, id: string): Promise<Result<unknown, string>> =>
+    call('statuses/unfavourite', M.Statuses.unfavourite(client.m, id)),
 
-  reblog: (client: MastodonClient, id: string): Promise<Result<mastodon.v1.Status, string>> =>
-    wrap('statuses/reblog', () => client.rest.v1.statuses.$select(id).reblog({})),
+  reblog: (client: MastodonClient, id: string): Promise<Result<unknown, string>> =>
+    call('statuses/reblog', M.Statuses.reblog(client.m, id)),
 
-  unreblog: (client: MastodonClient, id: string): Promise<Result<mastodon.v1.Status, string>> =>
-    wrap('statuses/unreblog', () => client.rest.v1.statuses.$select(id).unreblog()),
+  unreblog: (client: MastodonClient, id: string): Promise<Result<unknown, string>> =>
+    call('statuses/unreblog', M.Statuses.unreblog(client.m, id)),
 
-  bookmark: (client: MastodonClient, id: string): Promise<Result<mastodon.v1.Status, string>> =>
-    wrap('statuses/bookmark', () => client.rest.v1.statuses.$select(id).bookmark()),
+  bookmark: (client: MastodonClient, id: string): Promise<Result<unknown, string>> =>
+    call('statuses/bookmark', M.Statuses.bookmark(client.m, id)),
 
-  unbookmark: (client: MastodonClient, id: string): Promise<Result<mastodon.v1.Status, string>> =>
-    wrap('statuses/unbookmark', () => client.rest.v1.statuses.$select(id).unbookmark()),
+  unbookmark: (client: MastodonClient, id: string): Promise<Result<unknown, string>> =>
+    call('statuses/unbookmark', M.Statuses.unbookmark(client.m, id)),
 
-  pollVote: (client: MastodonClient, pollId: string, choices: readonly number[]): Promise<Result<mastodon.v1.Poll, string>> =>
-    wrap('polls/vote', () => client.rest.v1.polls.$select(pollId).votes.create({ choices })),
+  pollVote: (client: MastodonClient, pollId: string, choices: readonly number[]): Promise<Result<unknown, string>> =>
+    call('polls/vote', M.Statuses.pollVote(client.m, pollId, [...choices])),
 }
 
 // ─── Timelines ───────────────────────────────────────────────────────────────
@@ -146,31 +178,20 @@ export const Timelines = {
     limit?: number,
     sinceId?: string,
     maxId?: string,
-  ): Promise<Result<mastodon.v1.Status[], string>> =>
-    wrap('timelines/fetch', () => {
-      // Defensive: a production crash ("Cannot read properties of undefined
-      // (reading 'timelines')") couldn't be reproduced from this source — the
-      // most likely cause was a stale cached build. As belt-and-suspenders,
-      // if we're ever handed a client whose REST proxy isn't live (e.g. a
-      // call racing session restore), fail with a clear message instead of a
-      // cryptic property read.
-      if (!client?.rest?.v1) {
-        throw new Error('Mastodon client is not connected')
+  ): Promise<Result<unknown, string>> => {
+    const params = { limit, sinceId, maxId }
+    if (typeof type === 'string') {
+      switch (type) {
+        case 'home':
+          return call('timelines/fetch', M.Timelines.home(client.m, params))
+        case 'local':
+          return call('timelines/fetch', M.Timelines.local(client.m, params))
+        case 'global':
+          return call('timelines/fetch', M.Timelines.public(client.m, params))
       }
-      const params = { limit, sinceId, maxId }
-
-      if (typeof type === 'string') {
-        switch (type) {
-          case 'home':
-            return client.rest.v1.timelines.home.list(params)
-          case 'local':
-            return client.rest.v1.timelines.public.list({ ...params, local: true })
-          case 'global':
-            return client.rest.v1.timelines.public.list(params)
-        }
-      }
-      return client.rest.v1.timelines.list.$select(type.id).list(params)
-    }),
+    }
+    return call('timelines/fetch', M.Timelines.list(client.m, type.id, params))
+  },
 }
 
 // ─── Notifications ───────────────────────────────────────────────────────────
@@ -179,15 +200,12 @@ export const Notifications = {
   list: (
     client: MastodonClient,
     opts?: { limit?: number; sinceId?: string; maxId?: string },
-  ): Promise<Result<mastodon.v1.Notification[], string>> =>
-    wrap('notifications/list', async () => {
-      const result = await client.rest.v1.notifications.fetch({
-        limit: opts?.limit,
-        sinceId: opts?.sinceId,
-        maxId: opts?.maxId,
-      })
-      return result
-    }),
+  ): Promise<Result<unknown, string>> =>
+    call('notifications/list', M.Notifications.list(client.m, {
+      limit: opts?.limit,
+      sinceId: opts?.sinceId,
+      maxId: opts?.maxId,
+    })),
 }
 
 // ─── WebSocket streaming helpers ────────────────────────────────────────────
@@ -311,40 +329,40 @@ export const Stream = {
 // ─── Custom Emojis ───────────────────────────────────────────────────────────
 
 export const CustomEmojis = {
-  list: (client: MastodonClient): Promise<Result<mastodon.v1.CustomEmoji[], string>> =>
-    wrap('custom_emojis/list', async () => {
-      const result = await client.rest.v1.customEmojis.list()
-      return result
-    }),
+  list: (client: MastodonClient): Promise<Result<unknown, string>> =>
+    call('custom_emojis/list', M.CustomEmojis.list(client.m)),
 }
 
 // ─── Lists ───────────────────────────────────────────────────────────────────
 
 export const Lists = {
-  list: (client: MastodonClient): Promise<Result<mastodon.v1.List[], string>> =>
-    wrap('lists/list', () => client.rest.v1.lists.list()),
+  list: (client: MastodonClient): Promise<Result<unknown, string>> =>
+    call('lists/list', M.Lists.list(client.m)),
 }
 
 // ─── Media ───────────────────────────────────────────────────────────────────
 
 export const Media = {
-  upload: (
+  upload: async (
     client: MastodonClient,
     file: File | Blob,
     description?: string,
-  ): Promise<Result<string, string>> =>
-    wrap('media/upload', async () => {
-      const attachment = await client.rest.v2.media.create({
-        file,
-        description,
-      })
-      return attachment.id
-    }),
+  ): Promise<Result<string, string>> => {
+    try {
+      const result = await measureApiCall('media/upload', () => M.Media.upload(client.m, file, description))
+      const obj = result && typeof result === 'object' ? (result as Record<string, unknown>) : undefined
+      const id = obj && typeof obj['id'] === 'string' ? (obj['id'] as string) : undefined
+      if (!id) return err('Mastodon: upload returned no media id')
+      return ok(id)
+    } catch (e: unknown) {
+      return err(e instanceof Error ? e.message : String(e))
+    }
+  },
 }
 
 // ─── Instance ────────────────────────────────────────────────────────────────
 
 export const Instance = {
-  get: (client: MastodonClient): Promise<Result<mastodon.v2.Instance, string>> =>
-    wrap('instance/get', () => client.rest.v2.instance.fetch()),
+  get: (client: MastodonClient): Promise<Result<unknown, string>> =>
+    call('instance/get', M.Instance.get(client.m)),
 }

@@ -2,7 +2,7 @@
 //
 // Idiomatic Result<T, E> for TypeScript. Replaces the ReScript-flavored
 // { TAG: 'Ok' | 'Error'; _0: ... } shape that leaks from
-// @f3liz/rescript-misskey-api. All API calls are normalized to this shape
+// @f3liz/mazemaze-api-misskey. All API calls are normalized to this shape
 // at the lib/misskey.ts boundary — nothing else in the app should ever
 // need to touch TAG/_0.
 
@@ -28,7 +28,7 @@ export function unwrapOr<T, E>(r: Result<T, E>, fallback: T): T {
   return r.ok ? r.value : fallback
 }
 
-// ReScript interop shape emitted by @f3liz/rescript-misskey-api.
+// ReScript interop shape emitted by @f3liz/mazemaze-api-misskey.
 // Only used inside lib/misskey.ts to convert to the idiomatic Result above.
 export type RescriptResult<T, E> =
   | { TAG: 'Ok'; _0: T }

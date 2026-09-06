@@ -6,35 +6,8 @@
 
 declare const __BUILD_TIME__: string
 
-// The Melange-emitted typed Endpoints layer ships as generated JS without a
-// .d.ts surface, and `apiFetch` (the path/body seam that binds a client into
-// that layer) is absent from the package's main typings. src/lib-src/misskey.ts
-// is the one place allowed to reach into these internals, so declare just the
-// slice it consumes here.
-type MisskeyEndpointFetchFn = (path: string, body: unknown) => Promise<unknown>
-
-declare module '@f3liz/rescript-misskey-api' {
-  export function apiFetch(
-    client: import('@f3liz/rescript-misskey-api').MisskeyClient,
-  ): MisskeyEndpointFetchFn
-}
-
-declare module '@f3liz/rescript-misskey-api/endpoints' {
-  interface MisskeyTimelineEndpoint {
-    send(fetch: MisskeyEndpointFetchFn, req: Record<string, unknown>): Promise<unknown[]>
-  }
-  export const Notes: {
-    PostNotesTimeline: MisskeyTimelineEndpoint
-    PostNotesLocalTimeline: MisskeyTimelineEndpoint
-    PostNotesGlobalTimeline: MisskeyTimelineEndpoint
-    PostNotesHybridTimeline: MisskeyTimelineEndpoint
-    PostNotesUserListTimeline: MisskeyTimelineEndpoint
-    PostChannelsTimeline: MisskeyTimelineEndpoint
-  }
-  export const Antennas: {
-    PostAntennasNotes: MisskeyTimelineEndpoint
-  }
-}
+// @f3liz/mazemaze-api-misskey ships its own typings (the `Misskey` convenience
+// layer's .d.ts), so the adapter no longer needs an ambient slice declared here.
 
 // iconify-icon web component — Svelte's SvelteHTMLElements gates element
 // names through this interface, so unknown HTML tags need an explicit

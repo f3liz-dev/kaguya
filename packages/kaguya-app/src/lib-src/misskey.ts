@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 //
-// Thin adapter around @f3liz/rescript-misskey-api.
+// Thin adapter around @f3liz/mazemaze-api-misskey (the `Misskey` convenience
+// layer — the typed, JSDoc/d.ts-backed surface).
 //
 // This is the ONLY place in the app that is allowed to know about the
 // ReScript-flavored shapes ({ TAG: 'Ok'; _0 }, { NAME; VAL }, etc.).
@@ -24,17 +25,15 @@ import {
   Drive as _Drive,
   isPermissionDenied as _isPermissionDenied,
   isAPIError as _isAPIError,
-  apiFetch as _apiFetch,
-} from '@f3liz/rescript-misskey-api'
-import { Notes as _ENotes, Antennas as _EAntennas } from '@f3liz/rescript-misskey-api/endpoints'
+} from '@f3liz/mazemaze-api-misskey'
 import type {
   MisskeyClient,
   FetchFn,
   Subscription,
-} from '@f3liz/rescript-misskey-api'
-import type * as MisskeyApi from '@f3liz/rescript-misskey-api'
+} from '@f3liz/mazemaze-api-misskey'
+import type * as MisskeyApi from '@f3liz/mazemaze-api-misskey'
 import { measureApiCall } from '../infra/perfMonitor'
-import { fromRescript, ok, err } from '../infra/result'
+import { fromRescript } from '../infra/result'
 import type { Result, RescriptResult } from '../infra/result'
 
 // ─── Re-exported types ───────────────────────────────────────────────────────
@@ -107,16 +106,12 @@ export const request = (
   measureApiCall(endpoint, () => wrap(_request(client, endpoint, params)))
 
 /**
- * Fetch a timeline through the typed Melange-backed Endpoints layer.
+ * Fetch a timeline through the mazemaze convenience layer.
  *
- * Each Misskey timeline flavor is its own endpoint with its own request record;
- * we dispatch over TimelineType and hand off to the generated encoder/decoder.
- * That layer round-trips ReScript records as plain JS objects (camelCase keys,
- * `Some x` unboxed / `None` → undefined), and the encoder omits absent
- * optionals — so we only set the fields we actually have.
- *
- * Unlike the convenience layer, `send` rejects on transport/decode failure
- * rather than returning a Result, so we catch and fold into Result here.
+ * `Notes.timeline` routes every flavor itself — the plain strings and the
+ * `{ NAME, VAL }` antenna/list/channel variants alike — and already folds
+ * transport/decode failures into a Result, so we just translate our idiomatic
+ * TimelineType into the variant it expects and re-wrap.
  */
 async function fetchTimeline(
   client: MisskeyClient,
@@ -124,29 +119,8 @@ async function fetchTimeline(
   limit?: number,
   sinceId?: string,
   untilId?: string,
-): Promise<Result<unknown[]>> {
-  const fetch = _apiFetch(client)
-  const base = { limit, sinceId, untilId }
-  const send = (): Promise<unknown[]> => {
-    if (typeof type_ === 'string') {
-      switch (type_) {
-        case 'home':   return _ENotes.PostNotesTimeline.send(fetch, base)
-        case 'local':  return _ENotes.PostNotesLocalTimeline.send(fetch, base)
-        case 'global': return _ENotes.PostNotesGlobalTimeline.send(fetch, base)
-        case 'hybrid': return _ENotes.PostNotesHybridTimeline.send(fetch, base)
-      }
-    }
-    switch (type_.kind) {
-      case 'list':    return _ENotes.PostNotesUserListTimeline.send(fetch, { ...base, listId: type_.id })
-      case 'channel': return _ENotes.PostChannelsTimeline.send(fetch, { ...base, channelId: type_.id })
-      case 'antenna': return _EAntennas.PostAntennasNotes.send(fetch, { ...base, antennaId: type_.id })
-    }
-  }
-  try {
-    return ok(await send())
-  } catch (e) {
-    return err(e instanceof Error ? e.message : String(e))
-  }
+): Promise<Result<unknown>> {
+  return wrap(_Notes.timeline(client, toRescriptTimeline(type_), limit, sinceId, untilId))
 }
 
 // ─── Notes ────────────────────────────────────────────────────────────────────

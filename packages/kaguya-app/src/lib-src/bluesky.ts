@@ -1,14 +1,20 @@
 // SPDX-License-Identifier: MPL-2.0
 //
-// Thin adapter around @atproto/api.
-//
-// Mirrors the structure of mastodon.ts: this is the ONLY place in the app
-// that is allowed to know about @atproto/api internals. Everything here returns
-// idiomatic TypeScript types via Result<T, E> from infra/result.ts.
+// Bluesky adapter. Data calls go through @f3liz/mazemaze-api-bluesky (the
+// generated XRPC client); only what is genuinely atproto-specific stays on
+// @atproto:
+//   - OAuth / DPoP / session — @atproto/oauth-client-browser, via the Agent.
+//     The session's `fetchHandler` (DPoP-signed, auth'd, PDS auto-proxies the
+//     app.bsky.* reads) is injected as the mazemaze transport.
+//   - RichText.detectFacets — resolves @mentions in post text to DIDs.
+//   - com.atproto.server.getSession — the PDS-local fallback when the AppView
+//     is briefly unavailable (no mazemaze equivalent).
+// Writes are real atproto records (createRecord / deleteRecord) built here and
+// sent through mazemaze; this is the ONLY place that knows the lexicon shapes.
 
 import { Agent, RichText } from '@atproto/api'
 import type { OAuthSession } from '@atproto/oauth-client-browser'
-import type { AppBskyFeedDefs, AppBskyNotificationListNotifications } from '@atproto/api'
+import * as B from '@f3liz/mazemaze-api-bluesky'
 import { measureApiCall } from '../infra/perfMonitor'
 import { ok, err } from '../infra/result'
 import type { Result } from '../infra/result'
@@ -17,8 +23,14 @@ import type { Result } from '../infra/result'
 
 export type BlueskyClient = {
   agent: Agent
+  b: B.BlueskyClient
   did: string
   handle: string
+  // Bluesky paginates on opaque cursors, but the app paginates on a note's id.
+  // We bridge the two: as each page arrives we remember the cursor that comes
+  // *after* its last post, keyed by feed + that post's uri, so load-more can
+  // resume from the last rendered note. (Same idea as the hackers.pub adapter.)
+  cursors: Map<string, string>
 }
 
 export type BlueskySubscription = {
@@ -32,9 +44,46 @@ export type TimelineType =
 
 // ─── Core functions ──────────────────────────────────────────────────────────
 
+// The DPoP-authenticated transport. fetchHandler resolves a path/URL against
+// the session's token audience (the user's PDS) and signs the request; we pass
+// the URL the generated sends build, and let it carry the body (JSON, or binary
+// passed straight through for blob upload).
+function makeDpopFetch(session: OAuthSession): B.FetchFn {
+  return async (method, url, body) => {
+    const isBinary =
+      (typeof Blob !== 'undefined' && body instanceof Blob) || body instanceof Uint8Array
+    const noBody = method === 'GET' || method === 'HEAD'
+    const headers: Record<string, string> = {}
+    if (isBinary) {
+      headers['Content-Type'] =
+        (typeof Blob !== 'undefined' && body instanceof Blob && body.type) || 'application/octet-stream'
+    } else if (!noBody) {
+      headers['Content-Type'] = 'application/json'
+    }
+    const res = await session.fetchHandler(url, {
+      method,
+      headers,
+      body: noBody ? undefined : isBinary ? (body as BodyInit) : JSON.stringify(body ?? {}),
+    })
+    if (!res.ok) {
+      let message = `Bluesky ${res.status}`
+      try {
+        const j = await res.json()
+        if (j && typeof j.message === 'string') message = j.message
+      } catch { /* keep the status message */ }
+      throw new Error(message)
+    }
+    if (res.status === 204) return undefined
+    return res.json()
+  }
+}
+
 export function connectFromSession(session: OAuthSession): BlueskyClient {
   const agent = new Agent(session)
-  return { agent, did: session.did, handle: '' }
+  // Empty service: the generated sends build relative `/xrpc/...` URLs and the
+  // session's fetchHandler resolves them against the real PDS audience.
+  const b = B.connect('', { fetch: makeDpopFetch(session) })
+  return { agent, b, did: session.did, handle: '', cursors: new Map() }
 }
 
 export function close(_client: BlueskyClient): void {
@@ -51,44 +100,81 @@ async function wrap<T>(label: string, fn: () => PromiseLike<T>): Promise<Result<
   }
 }
 
+function asObj(v: unknown): Record<string, unknown> | undefined {
+  return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined
+}
+
+// at://did/collection/<rkey> -> rkey (the last path segment).
+function rkeyOf(atUri: string): string {
+  const parts = atUri.split('/')
+  return parts[parts.length - 1] ?? ''
+}
+
+const nowIso = (): string => new Date().toISOString()
+
+// ─── Cursor bridging (note id <-> opaque feed cursor) ────────────────────────
+
+// The app hands back the last rendered note's id as the "until" token. A repost
+// row is keyed "repost:<uri>" by the decoder, so strip that to get the post uri.
+function cursorKey(feedKey: string, untilId: string): string {
+  const uri = untilId.startsWith('repost:') ? untilId.slice('repost:'.length) : untilId
+  return `${feedKey}\n${uri}`
+}
+
+function lookupCursor(client: BlueskyClient, feedKey: string, untilId?: string): string | undefined {
+  if (!untilId) return undefined
+  return client.cursors.get(cursorKey(feedKey, untilId))
+}
+
+// Remember the page's next-cursor against its last post's uri, namespaced by
+// feed so the home/profile/feed/list pagers never cross wires.
+function recordCursor(client: BlueskyClient, feedKey: string, feed: unknown, cursor: unknown): unknown[] {
+  const items = Array.isArray(feed) ? feed : []
+  if (typeof cursor === 'string' && items.length > 0) {
+    const post = asObj(asObj(items[items.length - 1])?.['post'])
+    const uri = post?.['uri']
+    if (typeof uri === 'string') client.cursors.set(cursorKey(feedKey, uri), cursor)
+  }
+  return items
+}
+
 // ─── Accounts ────────────────────────────────────────────────────────────────
 
 export const Accounts = {
   /** Verify auth and get basic profile. Falls back to the PDS-local
-   *  getSession endpoint when getProfile (which proxies to the AppView)
-   *  is temporarily unavailable (502 / timeout). */
+   *  getSession endpoint (still via @atproto) when getProfile (which proxies to
+   *  the AppView) is temporarily unavailable. */
   getProfile: (client: BlueskyClient): Promise<Result<unknown, string>> =>
     wrap('bsky/getProfile', async () => {
       try {
-        const res = await client.agent.getProfile({ actor: client.did })
-        return res.data
+        return await B.getProfile(client.b, { actor: client.did })
       } catch (e) {
         console.warn('getProfile failed, falling back to getSession:', e)
-        // getSession is PDS-local — no AppView proxy needed
         const res = await client.agent.com.atproto.server.getSession()
         return { did: res.data.did, handle: res.data.handle, avatar: '' }
       }
     }),
 
   show: (client: BlueskyClient, did: string): Promise<Result<unknown, string>> =>
-    wrap('bsky/getProfile', async () => {
-      const res = await client.agent.getProfile({ actor: did })
-      return res.data
-    }),
+    wrap('bsky/getProfile', () => B.getProfile(client.b, { actor: did })),
 
+  // `opts.cursor` here is the app's until token (a note id); bridge it like the
+  // home timeline so a profile's load-more advances too.
   getAuthorFeed: (
     client: BlueskyClient,
     actor: string,
     opts?: { limit?: number; cursor?: string; filter?: string },
   ): Promise<Result<unknown, string>> =>
     wrap('bsky/getAuthorFeed', async () => {
-      const res = await client.agent.getAuthorFeed({
+      const feedKey = `author:${actor}`
+      const cursor = lookupCursor(client, feedKey, opts?.cursor)
+      const res = asObj(await B.getAuthorFeed(client.b, {
         actor,
         limit: opts?.limit,
-        cursor: opts?.cursor,
+        cursor,
         filter: opts?.filter,
-      })
-      return res.data.feed
+      }))
+      return recordCursor(client, feedKey, res?.['feed'], res?.['cursor'])
     }),
 }
 
@@ -101,84 +187,109 @@ export const Posts = {
     opts?: {
       replyTo?: { uri: string; cid: string }
       embed?: unknown
+      language?: string
     },
   ): Promise<Result<unknown, string>> =>
     wrap('bsky/post', async () => {
+      // Facet detection still needs an Agent to resolve mentions to DIDs.
       const rt = new RichText({ text: text ?? '' })
       await rt.detectFacets(client.agent)
       const record: Record<string, unknown> = {
+        $type: 'app.bsky.feed.post',
         text: rt.text,
         facets: rt.facets,
+        createdAt: nowIso(),
       }
       if (opts?.replyTo) {
-        record.reply = {
-          root: opts.replyTo,
-          parent: opts.replyTo,
-        }
+        record.reply = { root: opts.replyTo, parent: opts.replyTo }
       }
       if (opts?.embed) {
         record.embed = opts.embed
       }
-      return client.agent.post(record as Parameters<typeof client.agent.post>[0])
+      if (opts?.language) {
+        record.langs = [opts.language]
+      }
+      return B.createRecord(client.b, {
+        repo: client.did,
+        collection: 'app.bsky.feed.post',
+        record,
+      })
     }),
 
   show: (client: BlueskyClient, uri: string): Promise<Result<unknown, string>> =>
     wrap('bsky/getPosts', async () => {
-      const res = await client.agent.getPosts({ uris: [uri] })
-      const post = res.data.posts[0]
+      const res = asObj(await B.getPosts(client.b, { uris: [uri] }))
+      const posts = res?.['posts']
+      const post = Array.isArray(posts) ? posts[0] : undefined
       if (!post) throw new Error('Post not found')
       return post
     }),
 
   getThread: (client: BlueskyClient, uri: string): Promise<Result<unknown, string>> =>
     wrap('bsky/getPostThread', async () => {
-      const res = await client.agent.getPostThread({ uri })
-      return res.data.thread
+      const res = asObj(await B.getPostThread(client.b, { uri }))
+      return res?.['thread']
     }),
 
   like: (client: BlueskyClient, uri: string, cid: string): Promise<Result<unknown, string>> =>
-    wrap('bsky/like', () => client.agent.like(uri, cid)),
+    wrap('bsky/like', () =>
+      B.createRecord(client.b, {
+        repo: client.did,
+        collection: 'app.bsky.feed.like',
+        record: { $type: 'app.bsky.feed.like', subject: { uri, cid }, createdAt: nowIso() },
+      })),
 
   unlike: (client: BlueskyClient, likeUri: string): Promise<Result<unknown, string>> =>
-    wrap('bsky/deleteLike', async () => {
-      await client.agent.deleteLike(likeUri)
-      return undefined
-    }),
+    wrap('bsky/deleteLike', () =>
+      B.deleteRecord(client.b, {
+        repo: client.did,
+        collection: 'app.bsky.feed.like',
+        rkey: rkeyOf(likeUri),
+      })),
 
   repost: (client: BlueskyClient, uri: string, cid: string): Promise<Result<unknown, string>> =>
-    wrap('bsky/repost', () => client.agent.repost(uri, cid)),
+    wrap('bsky/repost', () =>
+      B.createRecord(client.b, {
+        repo: client.did,
+        collection: 'app.bsky.feed.repost',
+        record: { $type: 'app.bsky.feed.repost', subject: { uri, cid }, createdAt: nowIso() },
+      })),
 
   unrepost: (client: BlueskyClient, repostUri: string): Promise<Result<unknown, string>> =>
-    wrap('bsky/deleteRepost', async () => {
-      await client.agent.deleteRepost(repostUri)
-      return undefined
-    }),
+    wrap('bsky/deleteRepost', () =>
+      B.deleteRecord(client.b, {
+        repo: client.did,
+        collection: 'app.bsky.feed.repost',
+        rkey: rkeyOf(repostUri),
+      })),
 }
 
 // ─── Timelines ───────────────────────────────────────────────────────────────
 
 export const Timelines = {
+  // `untilId` is the last rendered note's id (the app's pagination token); we
+  // translate it back to the opaque feed cursor recorded for the previous page.
   fetch: (
     client: BlueskyClient,
     type: TimelineType,
     limit?: number,
-    cursor?: string,
+    untilId?: string,
   ): Promise<Result<unknown, string>> =>
     wrap('bsky/getTimeline', async () => {
+      const feedKey =
+        typeof type === 'string' ? 'home' : type.kind === 'feed' ? `feed:${type.uri}` : `list:${type.id}`
+      const cursor = lookupCursor(client, feedKey, untilId)
+      let res: Record<string, unknown> | undefined
       if (typeof type === 'string') {
-        // 'home' timeline
-        const res = await client.agent.getTimeline({ limit, cursor })
-        return res.data.feed
+        res = asObj(await B.getTimeline(client.b, { limit, cursor }))
+      } else if (type.kind === 'feed') {
+        res = asObj(await B.getFeed(client.b, { feed: type.uri, limit, cursor }))
+      } else if (type.kind === 'list') {
+        res = asObj(await B.getListFeed(client.b, { list: type.id, limit, cursor }))
+      } else {
+        return []
       }
-      if (type.kind === 'feed') {
-        const res = await client.agent.app.bsky.feed.getFeed({ feed: type.uri, limit, cursor })
-        return res.data.feed
-      }
-      if (type.kind === 'list') {
-        const res = await client.agent.app.bsky.feed.getListFeed({ list: type.id, limit, cursor })
-        return res.data.feed
-      }
-      return []
+      return recordCursor(client, feedKey, res?.['feed'], res?.['cursor'])
     }),
 }
 
@@ -188,10 +299,10 @@ export const Notifications = {
   list: (
     client: BlueskyClient,
     opts?: { limit?: number; cursor?: string },
-  ): Promise<Result<AppBskyNotificationListNotifications.Notification[], string>> =>
+  ): Promise<Result<unknown, string>> =>
     wrap('bsky/listNotifications', async () => {
-      const res = await client.agent.listNotifications({ limit: opts?.limit, cursor: opts?.cursor })
-      return res.data.notifications
+      const res = asObj(await B.listNotifications(client.b, { limit: opts?.limit, cursor: opts?.cursor }))
+      return res?.['notifications'] ?? []
     }),
 }
 
@@ -217,8 +328,9 @@ export const Stream = {
 export const Lists = {
   list: (client: BlueskyClient): Promise<Result<unknown[], string>> =>
     wrap('bsky/getLists', async () => {
-      const res = await client.agent.app.bsky.graph.getLists({ actor: client.did })
-      return res.data.lists
+      const res = asObj(await B.getLists(client.b, { actor: client.did }))
+      const lists = res?.['lists']
+      return Array.isArray(lists) ? lists : []
     }),
 }
 
@@ -282,8 +394,8 @@ function extractSavedFeedRefs(preferences: unknown[]): SavedFeedRef[] {
 export const Feeds = {
   listSaved: (client: BlueskyClient): Promise<Result<BlueskyFeedView[], string>> =>
     wrap('bsky/getSavedFeeds', async () => {
-      const prefsRes = await client.agent.app.bsky.actor.getPreferences()
-      const refs = extractSavedFeedRefs(prefsRes.data.preferences as unknown[])
+      const prefs = asObj(await B.getPreferences(client.b))
+      const refs = extractSavedFeedRefs((prefs?.['preferences'] as unknown[]) ?? [])
       if (refs.length === 0) return []
 
       // Only AT-URIs pointing at feed generators are valid input to
@@ -294,9 +406,19 @@ export const Feeds = {
       const hydrated = new Map<string, { displayName: string; description?: string; avatar?: string }>()
       for (let i = 0; i < feedUris.length; i += FEED_GENERATOR_BATCH_SIZE) {
         const batch = feedUris.slice(i, i + FEED_GENERATOR_BATCH_SIZE)
-        const res = await client.agent.app.bsky.feed.getFeedGenerators({ feeds: batch })
-        for (const g of res.data.feeds) {
-          hydrated.set(g.uri, { displayName: g.displayName, description: g.description, avatar: g.avatar })
+        const res = asObj(await B.getFeedGenerators(client.b, { feeds: batch }))
+        const feeds = res?.['feeds']
+        if (Array.isArray(feeds)) {
+          for (const g of feeds) {
+            const gen = asObj(g)
+            if (gen && typeof gen['uri'] === 'string') {
+              hydrated.set(gen['uri'] as string, {
+                displayName: (gen['displayName'] as string) ?? '',
+                description: gen['description'] as string | undefined,
+                avatar: gen['avatar'] as string | undefined,
+              })
+            }
+          }
         }
       }
 
@@ -322,13 +444,20 @@ export const Feeds = {
 
 export const Follows = {
   follow: (client: BlueskyClient, did: string): Promise<Result<unknown, string>> =>
-    wrap('bsky/follow', () => client.agent.follow(did)),
+    wrap('bsky/follow', () =>
+      B.createRecord(client.b, {
+        repo: client.did,
+        collection: 'app.bsky.graph.follow',
+        record: { $type: 'app.bsky.graph.follow', subject: did, createdAt: nowIso() },
+      })),
 
   unfollow: (client: BlueskyClient, followUri: string): Promise<Result<unknown, string>> =>
-    wrap('bsky/deleteFollow', async () => {
-      await client.agent.deleteFollow(followUri)
-      return undefined
-    }),
+    wrap('bsky/deleteFollow', () =>
+      B.deleteRecord(client.b, {
+        repo: client.did,
+        collection: 'app.bsky.graph.follow',
+        rkey: rkeyOf(followUri),
+      })),
 }
 
 // ─── Media ───────────────────────────────────────────────────────────────────
@@ -336,10 +465,11 @@ export const Follows = {
 export const Media = {
   upload: (client: BlueskyClient, file: File | Blob): Promise<Result<string, string>> =>
     wrap('bsky/uploadBlob', async () => {
-      const arrayBuf = await file.arrayBuffer()
-      const res = await client.agent.uploadBlob(new Uint8Array(arrayBuf), { encoding: file.type || 'application/octet-stream' })
+      // Pass the Blob through so the transport can read its mime type for the
+      // upload Content-Type; the response carries the blob ref.
+      const res = asObj(await B.uploadBlob(client.b, file))
       // Return the blob ref as a JSON string so backend.ts can pass it to createNote
-      return JSON.stringify(res.data.blob)
+      return JSON.stringify(res?.['blob'])
     }),
 }
 
@@ -347,8 +477,5 @@ export const Media = {
 
 export const Server = {
   describeServer: (client: BlueskyClient): Promise<Result<unknown, string>> =>
-    wrap('bsky/describeServer', async () => {
-      const res = await client.agent.com.atproto.server.describeServer()
-      return res.data
-    }),
+    wrap('bsky/describeServer', () => B.describeServer(client.b)),
 }
