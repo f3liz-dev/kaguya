@@ -141,6 +141,30 @@ export function decode(json: unknown): NoteView | undefined {
     ? { reactions: {}, reactionEmojis: {}, myReaction: undefined }
     : decodeReactions(obj)
   const replyTarget = asObj(obj['replyTarget'])
+  // The parent, as much of it as the card query carries (author, text,
+  // time), so a reply shows what it answers — the way Misskey replies do.
+  const replyUser = replyTarget ? decodeActor(replyTarget['actor']) : undefined
+  const replyContent = replyTarget ? getString(replyTarget, 'content') : undefined
+  const reply: NoteView | undefined = replyTarget && replyUser
+    ? {
+        id: getString(replyTarget, 'id') ?? '',
+        user: replyUser,
+        text: replyContent && replyContent.length > 0 ? replyContent : undefined,
+        contentType: 'html',
+        cw: undefined,
+        createdAt: getString(replyTarget, 'published') ?? '',
+        files: [],
+        reactions: {},
+        reactionEmojis: {},
+        myReaction: undefined,
+        reactionAcceptance: undefined,
+        renote: undefined,
+        replyId: undefined,
+        reply: undefined,
+        uri: getString(replyTarget, 'url') ?? undefined,
+        poll: undefined,
+      }
+    : undefined
 
   return {
     id,
@@ -156,7 +180,7 @@ export function decode(json: unknown): NoteView | undefined {
     reactionAcceptance: undefined,
     renote,
     replyId: replyTarget ? getString(replyTarget, 'id') ?? undefined : undefined,
-    reply: undefined,
+    reply,
     uri: getString(obj, 'url') ?? undefined,
     poll: decodePoll(obj),
   }
