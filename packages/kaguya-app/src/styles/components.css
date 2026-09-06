@@ -200,7 +200,7 @@ button.btn-quiet:disabled,
   background: var(--badge-attention);
   color: var(--badge-attention-ink);
   font-size: 12px; /* floor: nothing under 12px */
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   min-width: 18px;
   height: 18px;
   border-radius: 7px;
@@ -353,7 +353,7 @@ button.btn-quiet:disabled,
 
 .app-title {
   color: var(--ink-strong);
-  font-weight: 700;
+  font-weight: var(--weight-heavy);
   letter-spacing: 0.04em;
 }
 
@@ -505,7 +505,7 @@ button.btn-quiet:disabled,
 
 .account-switcher-name {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   color: var(--ink);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -612,7 +612,7 @@ button.btn-quiet:disabled,
 
 .account-switcher-add-icon {
   font-size: 1.1rem;
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   color: var(--secondary-text);
 }
 
@@ -656,7 +656,7 @@ button.btn-quiet:disabled,
 }
 
 .account-switcher-active-name {
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   font-size: 0.85rem;
   color: var(--ink-strong);
   overflow: hidden;
@@ -676,7 +676,7 @@ button.btn-quiet:disabled,
 .account-switcher-active-check {
   color: var(--primary-text);
   font-size: 1rem;
-  font-weight: 700;
+  font-weight: var(--weight-heavy);
   flex-shrink: 0;
 }
 
@@ -1339,7 +1339,7 @@ button.btn-quiet:disabled,
 .sensitive-icon { font-size: 2rem; }
 
 .sensitive-text {
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   color: var(--ink);
   font-size: 0.9rem;
 }
@@ -1612,7 +1612,7 @@ textarea:focus {
   margin-top: var(--space-2);
   padding: var(--space-2) var(--space-3);
   font-size: 0.8125rem;
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   background: transparent;
   border: 1px solid var(--toast-border);
   border-radius: var(--radius-sm);
@@ -1648,7 +1648,7 @@ textarea:focus {
   gap: 0.3rem;
   font-size: 0.85rem;
   color: var(--color-live);
-  font-weight: 600;
+  font-weight: var(--weight-strong);
 }
 
 .streaming-dot {
@@ -1781,7 +1781,7 @@ textarea:focus {
   align-items: center;
   gap: 0.35em;
   padding: 0.45rem 1.4rem;
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   font-size: 0.9rem;
   border-radius: var(--radius-pill);
   margin-bottom: 0;
@@ -1917,7 +1917,7 @@ textarea:focus {
 }
 
 .compose-modal-title {
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   font-size: 1rem;
   color: var(--ink);
 }
@@ -2013,7 +2013,7 @@ textarea:focus {
 
 .visibility-option.active {
   color: var(--primary-text);
-  font-weight: 600;
+  font-weight: var(--weight-strong);
 }
 
 .visibility-option iconify-icon {
@@ -2228,7 +2228,7 @@ textarea:focus {
   transition: background var(--duration) var(--ease),
               border-color var(--duration) var(--ease);
   font-size: 14px;
-  font-weight: bold;
+  font-weight: var(--weight-heavy);
   color: var(--ink-soft);
   user-select: none;
   padding: 0;
@@ -2376,7 +2376,7 @@ textarea:focus {
   border-radius: var(--radius-pill);
   padding: 0.4rem var(--space-4);
   font-size: 0.85rem;
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   cursor: pointer;
   box-shadow: var(--shadow-hover);
   transition: background var(--duration) var(--ease);
@@ -2405,7 +2405,7 @@ textarea:focus {
   background: var(--badge-attention);
   color: var(--badge-attention-ink);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   min-width: 18px;
   height: 18px;
   border-radius: 8px;

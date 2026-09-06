@@ -10,7 +10,7 @@
 
 .settings-title {
   font-size: 1.25rem;
-  font-weight: 700;
+  font-weight: var(--weight-heavy);
   color: var(--ink);
   margin: 0 0 var(--space-6);
   letter-spacing: 0.04em;
@@ -20,7 +20,7 @@
 
 .settings-section-title {
   font-size: 12px; /* floor: nothing under 12px */
-  font-weight: 700;
+  font-weight: var(--weight-heavy);
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--ink-soft);
@@ -418,7 +418,7 @@ a.settings-reset-link {
 
 .user-display-name {
   font-size: 1.3rem;
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   margin: 0;
   color: var(--ink);
   line-height: 1.3;
@@ -463,7 +463,7 @@ a.settings-reset-link {
 }
 
 .user-stat-value {
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   font-size: 1rem;
   color: var(--ink);
 }
@@ -852,7 +852,7 @@ a.settings-reset-link {
 .inbox-title {
   margin: 0;
   font-size: 1.25rem;
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   color: var(--ink-strong);
 }
 
@@ -937,7 +937,7 @@ a.settings-reset-link {
 
 .inbox-group-count {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   background: var(--primary);
   color: var(--primary-ink);
   border-radius: var(--radius-pill);

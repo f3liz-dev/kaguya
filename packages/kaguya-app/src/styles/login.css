@@ -25,7 +25,7 @@
 .login-title {
   color: var(--primary-text);
   font-size: 1.75rem;
-  font-weight: 700;
+  font-weight: var(--weight-heavy);
   letter-spacing: 0.08em;
 }
 
@@ -117,7 +117,7 @@
 
 .login-invalid-accounts-title {
   font-size: 0.85rem;
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   color: var(--color-error);
 }
 
@@ -208,7 +208,7 @@
 }
 
 .login-add-title {
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   font-size: 0.95rem;
   color: var(--ink);
 }
@@ -295,7 +295,7 @@ button.login-primary-btn {
   color: var(--primary-ink);
   border-radius: var(--radius);
   font-size: 0.9rem;
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   cursor: pointer;
   transition: background var(--duration) var(--ease), border-color var(--duration) var(--ease);
 }
@@ -341,7 +341,7 @@ button.login-submit {
   color: var(--color-success);
   margin: 0;
   font-size: 1.1rem;
-  font-weight: 600;
+  font-weight: var(--weight-strong);
 }
 
 .error-message {
