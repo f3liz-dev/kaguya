@@ -150,6 +150,7 @@
     <NoteActions
       noteId={displayNote.id}
       noteHost={effectiveHost}
+      uri={displayNote.uri}
     />
   </div>
 </article>

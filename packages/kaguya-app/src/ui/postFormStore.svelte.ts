@@ -126,12 +126,14 @@ export class Composer {
           this.attachedFiles.map((item) => Backend.uploadMedia(currentClient, item.file)),
         )
         this.uploadingCount = 0
-        const ids = uploadResults.flatMap((r) => {
-          if (r.ok) return [r.value]
+        // One failed image means the post you wrote is not the post that
+        // would go out. Stop here, keep the text and the files, say so.
+        if (uploadResults.some((r) => !r.ok)) {
           showError(t('note.image_upload_failed'))
-          return []
-        })
-        if (ids.length > 0) fileIds = ids
+          this.isPosting = false
+          return
+        }
+        fileIds = uploadResults.flatMap((r) => (r.ok ? [r.value] : []))
       }
 
       const result = await Backend.createNote(currentClient, this.text, {

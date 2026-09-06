@@ -14,13 +14,15 @@
   import { defaultRenoteVisibility } from '../../preferencesStore'
   import { svelteSignal } from '../../svelteSignal.svelte'
   import { navigate } from '../../svelteRouter'
+  import { outsideClick, escapeKey } from '../../modalActions'
 
   type Props = {
     noteId: string
     noteHost: string
+    uri?: string
     isFavorited?: boolean
   }
-  let { noteId, noteHost, isFavorited = false }: Props = $props()
+  let { noteId, noteHost, uri, isFavorited = false }: Props = $props()
 
   const localeR = svelteSignal(currentLocale)
   const loggedInR = svelteSignal(isLoggedIn)
@@ -30,6 +32,21 @@
   let isFavoriting = $state(false)
 
   const readOnly = $derived((loggedInR.value, isReadOnlyMode()))
+
+  // The "…" menu. Two things everyone can do with any note: open it where
+  // it lives, and copy that address. (Delete needs a backend op we don't
+  // have yet.)
+  let menuOpen = $state(false)
+  const noteLink = $derived(uri ?? `${location.origin}/notes/${noteId}/${noteHost}`)
+  function toggleMenu(e: MouseEvent) { e.stopPropagation(); menuOpen = !menuOpen }
+  function openOriginal(e: MouseEvent) {
+    e.stopPropagation(); menuOpen = false
+    window.open(noteLink, '_blank', 'noopener')
+  }
+  function copyLink(e: MouseEvent) {
+    e.stopPropagation(); menuOpen = false
+    navigator.clipboard.writeText(noteLink).then(() => showSuccess(L.linkCopied), () => showError(L.copyFailed))
+  }
 
   const L = $derived((localeR.value, {
     reply: t('note.reply'),
@@ -41,6 +58,10 @@
     unfavorite: t('note.unfavorite'),
     favoriteFailed: t('note.favorite_failed'),
     more: t('note.more'),
+    openOriginal: t('note.open_original'),
+    copyLink: t('note.copy_link'),
+    linkCopied: t('note.link_copied'),
+    copyFailed: t('note.copy_failed'),
   }))
 
   function handleReply() {
@@ -118,7 +139,27 @@
       <iconify-icon icon={favorited ? 'tabler:bookmark-filled' : 'tabler:bookmark'}></iconify-icon>
     </button>
   {/if}
-  <button class="note-action-btn note-action-more" type="button" title={L.more} aria-label={L.more}>
-    <iconify-icon icon="tabler:dots"></iconify-icon>
-  </button>
+  <div class="note-more" use:outsideClick={() => { menuOpen = false }} use:escapeKey={() => { menuOpen = false }}>
+    <button
+      class="note-action-btn note-action-more"
+      type="button"
+      title={L.more}
+      aria-label={L.more}
+      aria-haspopup="menu"
+      aria-expanded={menuOpen}
+      onclick={toggleMenu}
+    >
+      <iconify-icon icon="tabler:dots"></iconify-icon>
+    </button>
+    {#if menuOpen}
+      <div class="note-menu" role="menu">
+        <button class="note-menu-item" type="button" role="menuitem" onclick={openOriginal}>
+          <iconify-icon icon="tabler:external-link"></iconify-icon>{L.openOriginal}
+        </button>
+        <button class="note-menu-item" type="button" role="menuitem" onclick={copyLink}>
+          <iconify-icon icon="tabler:link"></iconify-icon>{L.copyLink}
+        </button>
+      </div>
+    {/if}
+  </div>
 </div>

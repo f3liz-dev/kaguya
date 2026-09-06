@@ -361,6 +361,36 @@ button.btn-quiet:disabled,
 
 .note-action-btn.loading { opacity: 0.6; }
 .note-action-more { margin-left: auto; }
+.note-more { position: relative; margin-left: auto; }
+.note-more .note-action-more { margin-left: 0; }
+
+/* The "…" menu: the same sheet as the account switcher, anchored right. */
+.note-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 200px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-hover);
+  z-index: var(--z-modal);
+  overflow: hidden;
+}
+.note-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  min-height: 40px;
+  text-align: left;
+  color: var(--ink);
+  font-size: 0.9rem;
+  white-space: nowrap;
+  transition: background var(--duration) var(--ease);
+}
+.note-menu-item:hover { background: var(--fill-soft); }
 
 .app-title {
   color: var(--ink-strong);
