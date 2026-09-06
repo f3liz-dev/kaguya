@@ -9,7 +9,7 @@ html {
   font-family: var(--font);
   line-height: var(--line);
   color: var(--ink);
-  overflow-x: hidden;
+  overflow: hidden;
   height: 100%;
 }
 
@@ -19,8 +19,12 @@ body {
   font-feature-settings: "palt"; /* JP proportional alternates */
   letter-spacing: 0.03em;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
+  /* Lock the document itself: only .layout-main > main scrolls. This keeps the
+     mobile browser's URL bar from collapsing on scroll/scrollIntoView (which
+     would otherwise hide the top bar and push the bottom buttons out of reach). */
+  overflow: hidden;
   height: 100%;
+  overscroll-behavior: none;
 }
 
 h1, h2, h3, h4, h5, h6 {

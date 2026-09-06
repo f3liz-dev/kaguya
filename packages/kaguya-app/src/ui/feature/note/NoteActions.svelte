@@ -7,11 +7,9 @@
 -->
 
 <script lang="ts">
-  import type { ReactionAcceptance } from '../../../infra/sharedTypes'
   import { client, isLoggedIn, isReadOnlyMode } from '../../../domain/auth/appState'
   import * as Backend from '../../../lib/backend'
   import { showSuccess, showError } from '../../toastState'
-  import EmojiPicker from '../emoji/EmojiPicker.svelte'
   import { currentLocale, t } from '../../../infra/i18n'
   import { defaultRenoteVisibility } from '../../preferencesStore'
   import { svelteSignal } from '../../svelteSignal.svelte'
@@ -20,16 +18,14 @@
   type Props = {
     noteId: string
     noteHost: string
-    reactionAcceptance?: ReactionAcceptance
     isFavorited?: boolean
   }
-  let { noteId, noteHost, reactionAcceptance, isFavorited = false }: Props = $props()
+  let { noteId, noteHost, isFavorited = false }: Props = $props()
 
   const localeR = svelteSignal(currentLocale)
   const loggedInR = svelteSignal(isLoggedIn)
 
   let isRenoting = $state(false)
-  let showEmojiPicker = $state(false)
   let favorited = $state(isFavorited)
   let isFavoriting = $state(false)
 
@@ -41,14 +37,9 @@
     renoted: t('note.renoted'),
     renoteFailed: t('note.renote_failed'),
     notConnected: t('error.not_connected'),
-    reaction: t('note.reaction'),
-    addReaction: t('note.add_reaction'),
     favorite: t('note.favorite'),
     unfavorite: t('note.unfavorite'),
-    favorited: t('note.favorited'),
-    unfavorited: t('note.unfavorited'),
     favoriteFailed: t('note.favorite_failed'),
-    reactionFailed: t('note.reaction_failed'),
     more: t('note.more'),
   }))
 
@@ -72,36 +63,26 @@
     })()
   }
 
+  // Optimistic, like ReactionBar: the icon flips the moment you tap — that
+  // flip is the feedback, so there is no success toast — and rolls back with
+  // an error toast if the server disagrees. The round-trip stays out of the
+  // perceived response entirely.
   function handleFavorite() {
     if (!loggedInR.value || readOnly || isFavoriting) return
+    const currentClient = client.peek()
+    if (!currentClient) { showError(L.notConnected); return }
+    const next = !favorited
+    favorited = next
     void (async () => {
       isFavoriting = true
-      const currentClient = client.peek()
-      if (currentClient) {
-        if (favorited) {
-          const result = await Backend.unfavourite(currentClient, noteId)
-          if (result.ok) { favorited = false; showSuccess(L.unfavorited) }
-          else showError(L.favoriteFailed)
-        } else {
-          const result = await Backend.favourite(currentClient, noteId)
-          if (result.ok) { favorited = true; showSuccess(L.favorited) }
-          else showError(L.favoriteFailed)
-        }
-      } else {
-        showError(L.notConnected)
+      const result = next
+        ? await Backend.favourite(currentClient, noteId)
+        : await Backend.unfavourite(currentClient, noteId)
+      if (!result.ok) {
+        favorited = !next
+        showError(L.favoriteFailed)
       }
       isFavoriting = false
-    })()
-  }
-
-  function handleEmojiSelect(emoji: string) {
-    showEmojiPicker = false
-    void (async () => {
-      const currentClient = client.peek()
-      if (currentClient) {
-        const result = await Backend.react(currentClient, noteId, emoji)
-        if (!result.ok) showError(L.reactionFailed)
-      }
     })()
   }
 </script>
@@ -120,24 +101,10 @@
   >
     <iconify-icon icon="tabler:repeat"></iconify-icon>
   </button>
-  {#if loggedInR.value && !readOnly}
-    <button
-      class="note-action-btn"
-      type="button"
-      title={L.reaction}
-      aria-label={L.addReaction}
-      onclick={() => { showEmojiPicker = true }}
-    >
-      <iconify-icon icon="tabler:plus"></iconify-icon>
-    </button>
-    {#if showEmojiPicker}
-      <EmojiPicker
-        onSelect={handleEmojiSelect}
-        onClose={() => { showEmojiPicker = false }}
-        {reactionAcceptance}
-      />
-    {/if}
-  {/if}
+  <!-- Reactions live in ReactionBar (its "+" opens the same picker and
+       updates the pills optimistically). A second entry point here reacted
+       silently — nothing visible changed until a refetch — so it was folded
+       into the one that answers. -->
   {#if loggedInR.value && !readOnly}
     <button
       class={`note-action-btn${favorited ? ' note-action-active' : ''}`}

@@ -41,8 +41,8 @@
 <script lang="ts">
   import type { BackendSubscription } from '../../../lib/backend'
   import * as Backend from '../../../lib/backend'
-  import { client, authState } from '../../../domain/auth/appState'
-  import { homeTimelineInitial } from '../../../domain/timeline/timelineStore'
+  import { client, authState, activeAccountId } from '../../../domain/auth/appState'
+  import { homeTimelineInitial, cacheHomeTimeline } from '../../../domain/timeline/timelineStore'
   import { decode as decodeNote, decodeManyFromJson } from '../../../domain/note/noteDecoder'
   import { prefetchNoteImages } from '../../../domain/note/noteOps'
   import type { NoteView } from '../../../domain/note/noteView'
@@ -63,6 +63,11 @@
   const LOAD_MORE_RETRY_BASE_MS = 2_000
   const LOAD_MORE_RETRY_CAP_MS = 30_000
   const MIN_REFETCH_INTERVAL_MS = 15_000
+  // 「もっと読む」で先読み分を差すときの、静かな間。一瞬で湧くと目が
+  // 追えないので、認知負荷を上げない程度に置く(sukhiと同じ作法)。
+  const REVEAL_DELAY_MS = 280
+
+  const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
   function getLastNoteId(notes: NoteView[]): string | undefined {
     return notes[notes.length - 1]?.id
@@ -106,6 +111,15 @@
   }
   let { timelineType, name, selector, reactionFiltered }: Props = $props()
 
+  // Stash a freshly-loaded home page into the per-account cache so a later
+  // switch back to this account paints instantly. Keyed by the account captured
+  // when the fetch started, so a switch mid-flight can't file it under the wrong
+  // account.
+  function cacheHomePage(accountId: string | undefined, raw: unknown): void {
+    if (timelineType !== 'home' || reactionFiltered || !accountId) return
+    if (Array.isArray(raw)) cacheHomeTimeline(accountId, raw)
+  }
+
   const clientR = svelteSignal(client)
   const authStateR = svelteSignal(authState)
   const isQuietR = svelteSignal(isQuietSignal)
@@ -125,6 +139,20 @@
   let subscription: BackendSubscription | undefined = undefined
   let lastSeenNoteId: string | undefined = undefined
   let topSentinelEl = $state<HTMLElement | null>(null)
+
+  // Next page, fetched in the background while you read the current one, so
+  // "load more" answers in a constant beat instead of a network round-trip.
+  // Plain (non-reactive) on purpose: only handlers and the prefetch effect
+  // touch it, and keeping it out of the graph means it can never feed a loop.
+  // `forCursor` ties the batch to the page it extends — a refresh or timeline
+  // switch moves the cursor and the stale batch is simply never used.
+  let prefetched: { forCursor: string; notes: NoteView[]; cursor: string | undefined } | null = null
+  let prefetchingCursor: string | undefined = undefined
+
+  function dropPrefetch() {
+    prefetched = null
+    prefetchingCursor = undefined
+  }
 
   const cooldownRemainingMs = $derived(
     lastFetchedAt > 0 ? Math.max(0, MIN_REFETCH_INTERVAL_MS - (nowTick - lastFetchedAt)) : 0,
@@ -261,10 +289,12 @@
     const currentClient = clientR.value
     const tt = timelineType
     const rf = reactionFiltered
+    const acctId = activeAccountId.peek()
     let cancelled = false
 
     state = { tag: 'Loading' }
     pendingNotes = []
+    dropPrefetch()
 
     async function fetchTimeline() {
       if (!currentClient) {
@@ -330,6 +360,7 @@
             const merged = [...newOnes, ...cachedNotes]
             state = { tag: 'Loaded', notes: merged, lastPostId: getLastNoteId(merged), hasMore: true, isLoadingMore: false, isStreaming: canStream, loadMoreError: false, loadMoreRetries: 0 }
           } else {
+            cacheHomePage(acctId, result.value)
             state = { tag: 'Loaded', notes: fetched, lastPostId: getLastNoteId(fetched), hasMore: fetched.length > 0, isLoadingMore: false, isStreaming: canStream, loadMoreError: false, loadMoreRetries: 0 }
           }
         } else if (cachedNotes.length === 0) {
@@ -402,6 +433,7 @@
     const wasStreaming = !!subscription
     state = { tag: 'Loading' }
     pendingNotes = []
+    dropPrefetch()
     const currentClient = client.peek()
     if (!currentClient) { state = { tag: 'Error', message: L.notConnected }; return }
 
@@ -409,6 +441,7 @@
     const result = await Backend.fetchTimeline(currentClient, timelineType, refreshPageSize)
     if (result.ok) {
       const notes = decodeManyFromJson(Array.isArray(result.value) ? result.value : [])
+      cacheHomePage(activeAccountId.peek(), result.value)
       state = { tag: 'Loaded', notes, lastPostId: getLastNoteId(notes), hasMore: notes.length > 0, isLoadingMore: false, isStreaming: wasStreaming, loadMoreError: false, loadMoreRetries: 0 }
     } else {
       state = { tag: 'Error', message: result.error }
@@ -418,6 +451,29 @@
   async function loadMore(force = false) {
     if (state.tag !== 'Loaded' || state.isLoadingMore || !state.lastPostId) return
     if (!force && !state.hasMore) return
+
+    // The prefetched batch is already here — no network on the click path.
+    // A short quiet beat before it lands, so the new notes don't pop in
+    // faster than the eye can re-anchor.
+    if (prefetched && prefetched.forCursor === state.lastPostId) {
+      const batch = prefetched
+      prefetched = null
+      state = { ...state, isLoadingMore: true, loadMoreError: false }
+      await sleep(REVEAL_DELAY_MS)
+      if (state.tag !== 'Loaded') return
+      const existingIds = new Set(state.notes.map((n: NoteView) => n.id))
+      const newNotes = batch.notes.filter((n) => !existingIds.has(n.id))
+      state = {
+        ...state,
+        notes: [...state.notes, ...newNotes],
+        lastPostId: batch.cursor ?? state.lastPostId,
+        hasMore: newNotes.length > 0,
+        isLoadingMore: false,
+        loadMoreError: false,
+        loadMoreRetries: 0,
+      }
+      return
+    }
 
     state = { ...state, isLoadingMore: true, loadMoreError: false }
 
@@ -461,6 +517,37 @@
     }
   }
 
+  // Prefetch the page after the current one as soon as the cursor settles —
+  // on first load, after a refresh, and after every reveal. Timeline fetches
+  // routinely take a network round-trip of several hundred ms; doing that trip
+  // while you're still reading is what lets "load more" answer within the
+  // ~400ms window where an action still feels connected to its response.
+  // An empty prefetched page means the timeline truly ends there, so the
+  // button can fold away instead of offering a click that returns nothing.
+  $effect(() => {
+    if (state.tag !== 'Loaded' || !state.hasMore || !state.lastPostId) return
+    const cursor = state.lastPostId
+    if (prefetchingCursor === cursor) return
+    const currentClient = client.peek()
+    if (!currentClient) return
+    prefetchingCursor = cursor
+    const pageSize = reactionFiltered ? 50 : 20
+    void (async () => {
+      const result = await Backend.fetchTimeline(currentClient, timelineType, pageSize, undefined, cursor)
+      // The cursor moved on (refresh / switch / a manual load) — stale, drop it.
+      if (prefetchingCursor !== cursor) return
+      if (state.tag !== 'Loaded' || state.lastPostId !== cursor) return
+      if (!result.ok) return
+      const fetched = decodeManyFromJson(Array.isArray(result.value) ? result.value : [])
+      if (fetched.length === 0) {
+        prefetched = null
+        state = { ...state, hasMore: false }
+      } else {
+        prefetched = { forCursor: cursor, notes: fetched, cursor: getLastNoteId(fetched) }
+      }
+    })()
+  })
+
   // Load-more auto-retry after a transient failure (exponential backoff).
   // No scroll sentinel anymore: loading the next page is an explicit choice, so
   // the timeline ends where you stopped reading instead of growing under you.
@@ -479,7 +566,13 @@
 
   function revealPendingAndScrollTop() {
     flushPendingNotes()
-    topSentinelEl?.scrollIntoView({ behavior: 'smooth' })
+    // Scroll the inner main container, not scrollIntoView: scrollIntoView nudges
+    // the visual viewport too, which makes the mobile browser toggle its chrome
+    // and momentarily pushes the in-flow bottom nav off-screen. Scrolling an
+    // inner element leaves the browser chrome (and the nav) where it is.
+    const main = document.querySelector<HTMLElement>('.layout-main > main')
+    if (main) main.scrollTo({ top: 0, behavior: 'smooth' })
+    else topSentinelEl?.scrollIntoView({ behavior: 'smooth' })
   }
 
   function handleSelectorChange(e: Event) {
@@ -544,7 +637,7 @@
       {/if}
     </div>
     <button
-      class="secondary outline"
+      class="btn-quiet"
       type="button"
       disabled={cooldownActive || state.tag === 'Loading'}
       title={cooldownActive ? L.refreshCooldown.replace('{s}', String(cooldownRemainingSecs)) : undefined}
@@ -621,7 +714,7 @@
                 : L.userFilterHidesAll}
           </p>
           {#if state.hasMore && !state.isLoadingMore}
-            <button class="secondary outline" type="button" onclick={() => void loadMore()}>
+            <button class="btn-quiet" type="button" onclick={() => void loadMore()}>
               {L.loadMore}
             </button>
           {/if}
@@ -640,14 +733,14 @@
       {#if state.loadMoreError}
         <div class="timeline-error-friendly timeline-error-friendly--compact">
           <p>{L.loadFailedRetry}</p>
-          <button class="secondary outline" type="button" onclick={() => {
+          <button class="btn-quiet" type="button" onclick={() => {
             if (state.tag === 'Loaded') state = { ...state, loadMoreError: false, loadMoreRetries: 0 }
           }}>{L.retry}</button>
         </div>
       {:else if state.hasMore}
         <div class="timeline-load-more">
           <button
-            class="secondary outline"
+            class="btn-quiet"
             type="button"
             disabled={state.isLoadingMore}
             onclick={() => void loadMore()}
@@ -657,7 +750,7 @@
         <div class="timeline-end">
           <p>{L.noMore}</p>
           <button
-            class="secondary outline mt-2"
+            class="btn-quiet mt-2"
             type="button"
             disabled={state.isLoadingMore}
             onclick={() => void loadMore(true)}

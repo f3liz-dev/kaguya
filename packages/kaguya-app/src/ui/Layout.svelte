@@ -284,9 +284,8 @@
     <footer class="container">
       <small class="footer-text">{L.tagline}</small>
     </footer>
-  </div>
 
-  <nav class="bottom-nav" aria-label={L.bottomNav}>
+    <nav class="bottom-nav" aria-label={L.bottomNav}>
     <button
       class="bottom-nav-btn {isActive('/') ? 'active' : ''}"
       onclick={handleHomeClick}
@@ -320,6 +319,7 @@
       <iconify-icon icon="tabler:settings"></iconify-icon>
     </button>
   </nav>
+  </div>
 
   <button
     class="note-fab"

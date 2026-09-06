@@ -147,6 +147,5 @@
   <NoteActions
     noteId={displayNote.id}
     noteHost={effectiveHost}
-    reactionAcceptance={displayNote.reactionAcceptance}
   />
 </article>

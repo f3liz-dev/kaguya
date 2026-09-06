@@ -46,6 +46,8 @@
   font-size: 0.9rem;
   color: var(--ink);
   font-weight: 500;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 /* In settings, show the full account switcher trigger inline */
@@ -154,6 +156,12 @@
 .settings-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* /reset is a plain <a>; render it like a button. */
+a.settings-reset-link {
+  display: inline-block;
+  text-decoration: none;
 }
 
 .settings-cache-progress {

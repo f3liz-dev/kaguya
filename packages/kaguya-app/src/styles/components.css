@@ -5,10 +5,45 @@
    var(--ease). No new animations were added; a handful of noisy ones removed. */
 
 /* ============================================================
+   Quiet buttons
+   ============================================================ */
+/* Reading-flow actions (更新 / もっと読む / みる / リトライ) carry
+   `btn-quiet`. They used to fall through to the filled primary button,
+   which made every one of them shout like a call-to-action — and their
+   old Pico-era class name `outline` collided with the UnoCSS `outline`
+   utility, drawing a 3px ring around each one. Only what creates
+   something (compose, submit) keeps the primary fill; these speak in
+   muted ink on a hairline border and answer on hover. */
+button.btn-quiet,
+[type="button"].btn-quiet {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+button.btn-quiet:hover:not(:disabled),
+[type="button"].btn-quiet:hover:not(:disabled) {
+  background: transparent;
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
+button.btn-quiet:disabled,
+[type="button"].btn-quiet:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ============================================================
    Layout
    ============================================================ */
 .layout {
-  height: 100dvh;
+  height: 100vh;   /* fallback for browsers without svh */
+  /* Small viewport height: the height with the mobile browser toolbar shown.
+     Always within the visible area, so the in-flow bottom nav never slips
+     below the fold. Since the document is locked (body overflow:hidden), the
+     toolbar stays put, so svh matches the live viewport with no dead strip. */
+  height: 100svh;
   display: flex;
   flex-direction: row;
   overflow: hidden;
@@ -30,8 +65,10 @@
 
 .layout-main > main {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding-top: var(--space-4);
   padding-bottom: var(--space-8);
@@ -204,10 +241,7 @@
    ============================================================ */
 .bottom-nav {
   display: none;
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  flex-shrink: 0;
   height: calc(54px + env(safe-area-inset-bottom, 0px));
   background: var(--bottom-nav-bg);
   border-top: 1px solid var(--border);
@@ -268,9 +302,6 @@
 @media (max-width: 768px) {
   .bottom-nav { display: flex; }
   .bottom-nav-account { display: flex; position: relative; }
-  .layout-main > main {
-    padding-bottom: calc(54px + env(safe-area-inset-bottom, 0px) + 1rem);
-  }
   .layout-main > footer { display: none; }
   .layout-main > header ul:nth-child(2) { display: none; }
 }
@@ -999,13 +1030,16 @@
   color: var(--ink);
 }
 
+/* A CW is a fold the author drew, not an alarm — so it speaks in an ink
+   wash from the tokens (the old hard-coded amber also stayed bright yellow
+   in dark mode). */
 .content-warning {
-  background: #fef3c7;
+  background: var(--overlay-hover);
   border-radius: var(--radius-sm);
   padding: var(--space-2) var(--space-3);
   margin: 0 0 var(--space-2) 0;
   font-size: 0.9rem;
-  color: #92400e;
+  color: var(--ink);
 }
 
 .cw-toggle {
@@ -2072,6 +2106,19 @@ textarea:focus {
 .top-sentinel { height: 1px; }
 
 .timeline-error-friendly--compact { padding: var(--space-4); }
+
+.timeline-load-more {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+/* The one button you tap over and over while reading — give it a full
+   thumb-sized target (WCAG 2.5.5) and room to breathe. */
+.timeline-load-more button {
+  min-height: var(--touch-min);
+  padding-inline: var(--space-8);
+}
 
 .timeline-end {
   text-align: center;

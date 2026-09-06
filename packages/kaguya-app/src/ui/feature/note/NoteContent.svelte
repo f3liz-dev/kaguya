@@ -29,9 +29,12 @@
 
 <div class="note-content" role="region" aria-label="Note content">
   {#if note.cw !== undefined}
-    <p class="content-warning" role="alert">{note.cw}</p>
+    <!-- Plain text, not role="alert": a CW is the author's own label for the
+         fold, not a live interruption — assertive announcement on every
+         render was noise for screen-reader users. -->
+    <p class="content-warning">{note.cw}</p>
     <button
-      class="cw-toggle secondary outline"
+      class="cw-toggle btn-quiet"
       type="button"
       aria-label={showContent ? L.collapseCw : L.revealCw}
       aria-expanded={showContent}
