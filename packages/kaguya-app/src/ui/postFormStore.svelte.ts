@@ -17,6 +17,8 @@ import { defaultNoteVisibility } from './preferencesStore'
 export type Attachment = {
   file: File
   preview: string
+  /** what the picture shows, for people who can't see it. hackers.pub requires it. */
+  alt: string
 }
 
 const MAX_ATTACHMENTS = 4
@@ -57,8 +59,12 @@ export class Composer {
     const remaining = MAX_ATTACHMENTS - this.attachedFiles.length
     if (remaining <= 0) return
     const accepted = files.slice(0, remaining)
-    const newItems = accepted.map((file) => ({ file, preview: URL.createObjectURL(file) }))
+    const newItems = accepted.map((file) => ({ file, preview: URL.createObjectURL(file), alt: '' }))
     this.attachedFiles = [...this.attachedFiles, ...newItems]
+  }
+
+  setAlt = (idx: number, alt: string): void => {
+    this.attachedFiles = this.attachedFiles.map((item, i) => (i === idx ? { ...item, alt } : item))
   }
 
   removeAttachment = (idx: number): void => {
@@ -119,11 +125,13 @@ export class Composer {
       const cwOpt = this.showCw && this.cw ? this.cw : undefined
       const replyId = this.replyTo?.id
 
+      const language = detectLanguage(this.text)
       let fileIds: string[] | undefined
+      let alts: string[] | undefined
       if (this.attachedFiles.length > 0) {
         this.uploadingCount = this.attachedFiles.length
         const uploadResults = await Promise.all(
-          this.attachedFiles.map((item) => Backend.uploadMedia(currentClient, item.file)),
+          this.attachedFiles.map((item) => Backend.uploadMedia(currentClient, item.file, { alt: item.alt })),
         )
         this.uploadingCount = 0
         // One failed image means the post you wrote is not the post that
@@ -134,6 +142,24 @@ export class Composer {
           return
         }
         fileIds = uploadResults.flatMap((r) => (r.ok ? [r.value] : []))
+        alts = this.attachedFiles.map((item) => item.alt)
+
+        // hackers.pub wants every picture described. Where you left it blank,
+        // ask the server to write one, with your text as the context.
+        if (currentClient.backend === 'hackerspub') {
+          const described = await Promise.all(fileIds.map(async (id, i) => {
+            if (alts![i].trim()) return alts![i]
+            const r = await Backend.describeMedia(currentClient, id, language ?? 'en', this.text || undefined)
+            return r.ok ? r.value : ''
+          }))
+          if (described.some((a) => !a)) {
+            showError(t('compose.alt_required'))
+            this.isPosting = false
+            return
+          }
+          alts = described
+          this.attachedFiles = this.attachedFiles.map((item, i) => ({ ...item, alt: described[i] }))
+        }
       }
 
       const result = await Backend.createNote(currentClient, this.text, {
@@ -141,7 +167,8 @@ export class Composer {
         cw: cwOpt,
         replyId,
         fileIds,
-        language: detectLanguage(this.text),
+        alts,
+        language,
       })
 
       if (result.ok) {

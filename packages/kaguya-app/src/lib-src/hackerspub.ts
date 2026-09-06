@@ -209,6 +209,8 @@ export const Notes = {
       renoteId?: string
       language?: string
       mediaIds?: string[]
+      /** alt text per mediaIds entry; hackers.pub requires one for each */
+      alts?: string[]
     },
   ): Promise<Result<unknown>> => {
     // A pure renote (no text) is a share, not a note.
@@ -221,7 +223,7 @@ export const Notes = {
       visibility: toHpVisibility(opts?.visibility),
       replyTargetId: opts?.replyId,
       quotedPostId: opts?.renoteId,
-      media: opts?.mediaIds?.map(mediumId => ({ mediumId, alt: '' })),
+      media: opts?.mediaIds?.map((mediumId, i) => ({ mediumId, alt: opts.alts?.[i] ?? '' })),
     }))
   },
 
@@ -316,6 +318,21 @@ export const Notifications = {
 // ─── Media ───────────────────────────────────────────────────────────────────
 
 export const Media = {
+  // Ask the server for AI alt text for an uploaded medium. `context` is the
+  // note's text, so the description knows what the picture is for.
+  describe: async (
+    client: HackersPubClient,
+    mediumId: string,
+    language: string,
+    context?: string,
+  ): Promise<Result<string>> => {
+    const r = await call('hp/generatedAltText', 'node', HP.generatedAltText(client.hp, { mediumId, language, context }))
+    if (!r.ok) return r
+    const node = r.value && typeof r.value === 'object' ? (r.value as Record<string, unknown>) : undefined
+    const alt = node?.['generatedAltText']
+    return typeof alt === 'string' && alt.length > 0 ? ok(alt) : err('hackers.pub: no alt text came back')
+  },
+
   // hackers.pub uploads in three steps: reserve an upload slot, PUT the bytes
   // to the returned URL, then finalize to get the medium id.
   upload: async (client: HackersPubClient, file: File | Blob): Promise<Result<string>> => {

@@ -50,6 +50,8 @@ export const en: Record<keyof typeof ja, string> = {
   'compose.cw_button': 'Content Warning (CW)',
   'compose.attach_image': 'Attach image',
   'compose.attachment_alt': 'Attached image',
+  'compose.alt_placeholder': 'Describe the picture (for people who cannot see it). Left blank on hackers.pub, one is written for you',
+  'compose.alt_required': 'Could not describe the picture. Add a description and send again',
   'compose.visibility': 'Visibility',
   'compose.visibility_public': 'Public',
   'compose.visibility_home': 'Home only',

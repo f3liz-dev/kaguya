@@ -48,6 +48,8 @@ export const ja = {
   'compose.cw_button': '閲覧注意 (CW)',
   'compose.attach_image': '画像を添付',
   'compose.attachment_alt': '添付画像',
+  'compose.alt_placeholder': '画像の説明(見えない人のために)。hackers.pub では空なら自動で作ります',
+  'compose.alt_required': '画像の説明を作れませんでした。書いてから送ってください',
   'compose.visibility': '公開範囲',
   'compose.visibility_public': 'パブリック',
   'compose.visibility_home': 'ホームのみ',

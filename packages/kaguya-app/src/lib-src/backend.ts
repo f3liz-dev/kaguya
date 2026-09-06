@@ -192,6 +192,8 @@ export async function createNote(
     replyId?: string
     renoteId?: string
     fileIds?: string[]
+    /** alt text per fileIds entry (hackers.pub needs it; Mastodon takes it at upload) */
+    alts?: string[]
     language?: string
   },
 ): Promise<Result<unknown>> {
@@ -258,6 +260,7 @@ export async function createNote(
         renoteId: opts?.renoteId,
         mediaIds: opts?.fileIds,
         language: opts?.language,
+        alts: opts?.alts,
       })
   }
 }
@@ -513,14 +516,27 @@ export function listFeeds(bc: BackendClient): Promise<Result<unknown[]>> {
 
 // ─── Media ───────────────────────────────────────────────────────────────────
 
+/** AI alt text for an already-uploaded medium. Only hackers.pub offers it. */
+export function describeMedia(
+  bc: BackendClient,
+  mediaId: string,
+  language: string,
+  context?: string,
+): Promise<Result<string>> {
+  switch (bc.backend) {
+    case 'hackerspub': return Hackerspub.Media.describe(bc.client, mediaId, language, context)
+    default: return Promise.resolve(err('This backend cannot describe images'))
+  }
+}
+
 export function uploadMedia(
   bc: BackendClient,
   file: File | Blob,
-  opts?: { sensitive?: boolean; onProgress?: (progress: unknown) => void },
+  opts?: { sensitive?: boolean; alt?: string; onProgress?: (progress: unknown) => void },
 ): Promise<Result<string>> {
   switch (bc.backend) {
     case 'misskey': return Misskey.Drive.upload(bc.client, file, opts?.sensitive, opts?.onProgress as never)
-    case 'mastodon': return Mastodon.Media.upload(bc.client, file)
+    case 'mastodon': return Mastodon.Media.upload(bc.client, file, opts?.alt || undefined)
     case 'bluesky': return Bluesky.Media.upload(bc.client, file)
     case 'hackerspub': return Hackerspub.Media.upload(bc.client, file)
   }

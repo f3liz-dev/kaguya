@@ -44,6 +44,7 @@
     cwPlaceholder: t('compose.cw_placeholder'),
     placeholder: t('compose.placeholder'),
     attachmentAlt: t('compose.attachment_alt'),
+    altPlaceholder: t('compose.alt_placeholder'),
     remove: t('action.remove'),
     cwButton: t('compose.cw_button'),
     attachImage: t('compose.attach_image'),
@@ -100,8 +101,9 @@
     {#if composer.attachedFiles.length > 0}
       <div class="post-form-attachments fade-in">
         {#each composer.attachedFiles as item, idx (idx)}
+          <div class="attachment-item">
           <div class="attachment-preview {composer.uploadingCount > 0 ? 'uploading' : ''}">
-            <img src={item.preview} class="attachment-img" alt={L.attachmentAlt} />
+            <img src={item.preview} class="attachment-img" alt={item.alt || L.attachmentAlt} />
             {#if composer.uploadingCount > 0}
               <div class="attachment-upload-overlay">
                 <iconify-icon icon="tabler:loader-2" class="attachment-upload-spinner"></iconify-icon>
@@ -117,6 +119,16 @@
                 <iconify-icon icon="tabler:x"></iconify-icon>
               </button>
             {/if}
+          </div>
+          <textarea
+            class="attachment-alt"
+            rows="2"
+            placeholder={L.altPlaceholder}
+            aria-label={L.altPlaceholder}
+            value={item.alt}
+            oninput={(e) => composer.setAlt(idx, (e.currentTarget as HTMLTextAreaElement).value)}
+            disabled={composer.isPosting}
+          ></textarea>
           </div>
         {/each}
       </div>

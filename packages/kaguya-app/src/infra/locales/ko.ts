@@ -50,6 +50,8 @@ export const ko: Record<keyof typeof ja, string> = {
   'compose.cw_button': '열람 주의 (CW)',
   'compose.attach_image': '이미지 첨부',
   'compose.attachment_alt': '첨부 이미지',
+  'compose.alt_placeholder': '그림 설명(보지 못하는 사람을 위해). hackers.pub에서는 비워두면 자동으로 써 드려요',
+  'compose.alt_required': '그림 설명을 만들지 못했어요. 적고 나서 다시 보내 주세요',
   'compose.visibility': '공개 범위',
   'compose.visibility_public': '공개',
   'compose.visibility_home': '홈에만',
