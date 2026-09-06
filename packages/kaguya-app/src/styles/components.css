@@ -309,15 +309,26 @@ button.btn-quiet:disabled,
 /* ============================================================
    Note Action Footer
    ============================================================ */
+.note-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--border);
+}
+/* Reactions and the action buttons share one row and wrap when they
+   must — the official client's density. */
+.note-footer .reaction-bar { margin-top: 0; }
+
 .note-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
+  flex: 1;
   gap: var(--space-2);
-  margin-top: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--border);
   position: relative;
 }
 
@@ -689,7 +700,7 @@ button.btn-quiet:disabled,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-3);
 }
 
 .timeline-header-left {
@@ -845,7 +856,7 @@ button.btn-quiet:disabled,
 .timeline-notes {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-2);
   max-width: var(--timeline-max-width);
 }
 
@@ -856,7 +867,7 @@ button.btn-quiet:disabled,
   background: var(--surface);
   border-radius: var(--radius);
   border: 1px solid var(--border);
-  padding: var(--space-6);
+  padding: var(--space-4);
   box-shadow: var(--shadow);
   margin: 0;
   overflow: hidden;
@@ -954,7 +965,7 @@ button.btn-quiet:disabled,
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-2);
 }
 
 .avatar {
@@ -1449,6 +1460,11 @@ button.btn-quiet:disabled,
 }
 
 @media (max-width: 576px) {
+  /* Phones: the gutter and the card padding come down a step so the
+     column of text is wider — closer to the official client's density. */
+  main.container { padding-left: var(--space-2); padding-right: var(--space-2); }
+  .note { padding: var(--space-3); }
+  .note-header { gap: var(--space-2); }
   .image-gallery.double,
   .image-gallery.triple,
   .image-gallery.multiple {

@@ -137,15 +137,19 @@
     contextHost={effectiveHost}
   />
   <ImageGallery files={displayNote.files} />
-  <ReactionBar
-    noteId={displayNote.id}
-    reactions={displayNote.reactions}
-    reactionEmojis={displayNote.reactionEmojis}
-    myReaction={displayNote.myReaction}
-    reactionAcceptance={displayNote.reactionAcceptance}
-  />
-  <NoteActions
-    noteId={displayNote.id}
-    noteHost={effectiveHost}
-  />
+  <!-- One footer row. With reactions the bar takes the full width and the
+       actions drop under it; without, the "+" sits at the head of the row. -->
+  <div class="note-footer">
+    <ReactionBar
+      noteId={displayNote.id}
+      reactions={displayNote.reactions}
+      reactionEmojis={displayNote.reactionEmojis}
+      myReaction={displayNote.myReaction}
+      reactionAcceptance={displayNote.reactionAcceptance}
+    />
+    <NoteActions
+      noteId={displayNote.id}
+      noteHost={effectiveHost}
+    />
+  </div>
 </article>
