@@ -211,19 +211,19 @@
    ============================================================ */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg:             oklch(21.0% 0.012 315);
-    --surface:        oklch(25.0% 0.014 312);
-    --surface-sunken: oklch(18.5% 0.011 315);
-    --surface-raised: oklch(28.0% 0.015 312);
+    --bg:             oklch(22.0% 0.045 245);
+    --surface:        oklch(26.0% 0.045 245);
+    --surface-sunken: oklch(19.0% 0.040 245);
+    --surface-raised: oklch(29.5% 0.045 245);
 
-    --ink:        oklch(86.0% 0.012 45);
-    --ink-soft:   oklch(74.0% 0.016 40);
-    --ink-strong: oklch(92.0% 0.010 45);
+    --ink:        oklch(87.0% 0.012 90);
+    --ink-soft:   oklch(73.0% 0.015 90);
+    --ink-strong: oklch(93.0% 0.010 90);
     --weight-strong: 500;
     --weight-heavy:  600;
 
-    --border:        oklch(100% 0 0 / 0.08);
-    --border-strong: oklch(100% 0 0 / 0.16);
+    --border:        oklch(80% 0.05 245 / 0.14);
+    --border-strong: oklch(80% 0.05 245 / 0.26);
 
     --primary:       oklch(80.0% 0.050 38);
     --primary-hover: oklch(85.0% 0.045 38);
@@ -249,19 +249,19 @@
 }
 
 [data-theme="dark"] {
-  --bg:             oklch(21.0% 0.012 315);
-  --surface:        oklch(25.0% 0.014 312);
-  --surface-sunken: oklch(18.5% 0.011 315);
-  --surface-raised: oklch(28.0% 0.015 312);
+  --bg:             oklch(22.0% 0.045 245);
+  --surface:        oklch(26.0% 0.045 245);
+  --surface-sunken: oklch(19.0% 0.040 245);
+  --surface-raised: oklch(29.5% 0.045 245);
 
-  --ink:        oklch(86.0% 0.012 45);
-  --ink-soft:   oklch(74.0% 0.016 40);
-  --ink-strong: oklch(92.0% 0.010 45);
+  --ink:        oklch(87.0% 0.012 90);
+  --ink-soft:   oklch(73.0% 0.015 90);
+  --ink-strong: oklch(93.0% 0.010 90);
   --weight-strong: 500;
   --weight-heavy:  600;
 
-  --border:        oklch(100% 0 0 / 0.08);
-  --border-strong: oklch(100% 0 0 / 0.16);
+  --border:        oklch(80% 0.05 245 / 0.14);
+  --border-strong: oklch(80% 0.05 245 / 0.26);
 
   --primary:       oklch(80.0% 0.050 38);
   --primary-hover: oklch(85.0% 0.045 38);
