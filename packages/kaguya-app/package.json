@@ -12,6 +12,7 @@
     "clean": "rm -rf dist",
     "preview": "vite preview",
     "senga": "node senga/run.mjs",
+    "preview:mock": "node senga/preview.mjs",
     "deploy": "npm run build && wrangler deploy",
     "deploy:dev": "npm run build && wrangler deploy --env dev",
     "cf:dev": "wrangler dev",
