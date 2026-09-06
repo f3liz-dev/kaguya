@@ -59,10 +59,10 @@
   let state = $state<PageState>({ type: 'Loading' })
   let isFollowing = $state(false)
   let isFollowLoading = $state(false)
-  let sentinelEl = $state<HTMLDivElement | null>(null)
 
   const L = $derived((localeR.value, {
     loading: t('app.loading'),
+    loadMore: t('action.load_more'),
     notConnected: t('error.not_connected'),
     decodeFailed: t('user.decode_failed'),
     follow: t('user.follow'),
@@ -176,18 +176,6 @@
       state = { ...state, isLoadingMore: false }
     }
   }
-
-  $effect(() => {
-    void state
-    const el = sentinelEl
-    if (!el) return
-    const obs = new IntersectionObserver(
-      (entries) => { if (entries[0]?.isIntersecting) void loadMore() },
-      { threshold: 0.1 },
-    )
-    obs.observe(el)
-    return () => obs.disconnect()
-  })
 
   function handleImagesOnly(userId: string, e: Event) {
     const checked = (e.currentTarget as HTMLInputElement).checked
@@ -320,10 +308,14 @@
             {/each}
           </div>
           {#if state.hasMore}
-            <div bind:this={sentinelEl} class="timeline-sentinel"></div>
-            {#if state.isLoadingMore}
-              <div class="timeline-loading-more"><p>{L.loading}</p></div>
-            {/if}
+            <div class="timeline-load-more">
+              <button
+                class="btn-quiet"
+                type="button"
+                disabled={state.isLoadingMore}
+                onclick={() => void loadMore()}
+              >{state.isLoadingMore ? L.loading : L.loadMore}</button>
+            </div>
           {:else}
             <div class="timeline-end"><p>{L.noMore}</p></div>
           {/if}
