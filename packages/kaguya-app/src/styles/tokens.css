@@ -207,14 +207,14 @@
    ============================================================ */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg:             oklch(22.0% 0.030 355);
-    --surface:        oklch(27.0% 0.035 3);
-    --surface-sunken: oklch(19.0% 0.028 355);
-    --surface-raised: oklch(30.0% 0.035 3);
+    --bg:             oklch(22.0% 0.016 315);
+    --surface:        oklch(26.0% 0.018 312);
+    --surface-sunken: oklch(19.0% 0.014 315);
+    --surface-raised: oklch(29.0% 0.020 312);
 
-    --ink:        oklch(92.0% 0.026 41);
-    --ink-soft:   oklch(70.0% 0.030 30);
-    --ink-strong: oklch(96.0% 0.020 41);
+    --ink:        oklch(92.0% 0.014 45);
+    --ink-soft:   oklch(70.0% 0.018 40);
+    --ink-strong: oklch(96.0% 0.010 45);
 
     --border:        oklch(100% 0 0 / 0.10);
     --border-strong: oklch(100% 0 0 / 0.20);
@@ -243,14 +243,14 @@
 }
 
 [data-theme="dark"] {
-  --bg:             oklch(22.0% 0.030 355);
-  --surface:        oklch(27.0% 0.035 3);
-  --surface-sunken: oklch(19.0% 0.028 355);
-  --surface-raised: oklch(30.0% 0.035 3);
+  --bg:             oklch(22.0% 0.016 315);
+  --surface:        oklch(26.0% 0.018 312);
+  --surface-sunken: oklch(19.0% 0.014 315);
+  --surface-raised: oklch(29.0% 0.020 312);
 
-  --ink:        oklch(92.0% 0.026 41);
-  --ink-soft:   oklch(70.0% 0.030 30);
-  --ink-strong: oklch(96.0% 0.020 41);
+  --ink:        oklch(92.0% 0.014 45);
+  --ink-soft:   oklch(70.0% 0.018 40);
+  --ink-strong: oklch(96.0% 0.010 45);
 
   --border:        oklch(100% 0 0 / 0.10);
   --border-strong: oklch(100% 0 0 / 0.20);
