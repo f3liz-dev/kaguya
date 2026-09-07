@@ -987,6 +987,16 @@ button.btn-quiet:disabled,
 }
 
 .note-reply-parent-content { position: relative; }
+
+/* A quoted post: boxed under the body, quieter than the note itself. */
+.note-quote {
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.9em;
+}
+.note-quote .note-header { margin-bottom: var(--space-1); }
 .note-reply-parent-content .note-text {
   margin-left: calc(var(--avatar-size) + var(--avatar-gap));
 }

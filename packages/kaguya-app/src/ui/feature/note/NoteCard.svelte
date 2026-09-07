@@ -137,6 +137,28 @@
     contextHost={effectiveHost}
   />
   <ImageGallery files={displayNote.files} />
+  {#if !pureRenote && displayNote.renote}
+    {@const quoted = displayNote.renote}
+    <div class="note-quote">
+      <NoteHeader
+        user={quoted.user}
+        createdAt={quoted.createdAt}
+        noteId={quoted.id}
+        contextHost={effectiveHost}
+      />
+      {#if quoted.text}
+        <div class="note-text">
+          <ContentRenderer
+            text={quoted.text}
+            contentType={quoted.contentType}
+            facets={quoted.facets}
+            contextHost={effectiveHost}
+          />
+        </div>
+      {/if}
+      <ImageGallery files={quoted.files} />
+    </div>
+  {/if}
   <!-- One footer row. With reactions the bar takes the full width and the
        actions drop under it; without, the "+" sits at the head of the row. -->
   <div class="note-footer">

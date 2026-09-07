@@ -134,6 +134,9 @@ export function decode(json: unknown): NoteView | undefined {
   // wrapper's own content/media/reactions and render it as a pure boost — that
   // is what makes isPureRenote() true and shows the "boosted" header.
   const isBoost = renote !== undefined
+  // A quote keeps its own text and carries the quoted post underneath — the
+  // same NoteView shape Misskey quotes use (text + renote).
+  const quoted = isBoost ? undefined : decode(obj['quotedPost'])
   const content = getString(obj, 'content')
   const text = isBoost ? undefined : (content && content.length > 0 ? content : undefined)
 
@@ -178,7 +181,7 @@ export function decode(json: unknown): NoteView | undefined {
     reactionEmojis,
     myReaction,
     reactionAcceptance: undefined,
-    renote,
+    renote: renote ?? quoted,
     replyId: replyTarget ? getString(replyTarget, 'id') ?? undefined : undefined,
     reply,
     uri: getString(obj, 'url') ?? undefined,
