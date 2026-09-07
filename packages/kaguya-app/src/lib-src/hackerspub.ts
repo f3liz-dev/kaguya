@@ -339,7 +339,19 @@ export const Media = {
   // that storage lets our origin in; when any step fails we fall back to
   // createMedium with a data: URL, which hackers.pub accepts and which needs
   // no CORS at all.
+  //
+  // 2026-09-07: hackers.pub's R2 bucket answers our preflight with 403 and no
+  // Access-Control-Allow-Origin, so the direct PUT never works from a
+  // third-party origin. The data: URL path goes first; the direct path is
+  // only tried for files too big to sit in a GraphQL body.
   upload: async (client: HackersPubClient, file: File | Blob): Promise<Result<string>> => {
+    if (file.size <= DATA_URL_MAX_BYTES) {
+      const viaDataUrl = await uploadAsDataUrl(client, file)
+      if (viaDataUrl.ok) return viaDataUrl
+      const direct = await uploadDirect(client, file)
+      if (direct.ok) return direct
+      return err(`${viaDataUrl.error}; then ${direct.error}`)
+    }
     const direct = await uploadDirect(client, file)
     if (direct.ok) return direct
     const viaDataUrl = await uploadAsDataUrl(client, file)
@@ -347,6 +359,10 @@ export const Media = {
     return err(`${direct.error}; then ${viaDataUrl.error}`)
   },
 }
+
+// A data: URL is 4/3 the bytes, inside a JSON body; keep it to what a
+// request can comfortably carry.
+const DATA_URL_MAX_BYTES = 8 * 1024 * 1024
 
 async function uploadDirect(client: HackersPubClient, file: File | Blob): Promise<Result<string>> {
   {
