@@ -21,7 +21,7 @@ import { login } from './authService'
 // We stash the challenge token this browser issued, so the magic-link callback
 // can tell "this is the browser that started sign-in" from "the link was opened
 // somewhere else" and offer the right path.
-const PENDING_KEY = 'kaguya:hackerspub:pendingToken'
+const PENDING_KEY = 'kaguya:hackerspub:pendingToken' // also read by authManager.isOwnChallenge
 
 /** True if this browser is the one that requested the given challenge. */
 export function isOwnChallenge(token: string): boolean {

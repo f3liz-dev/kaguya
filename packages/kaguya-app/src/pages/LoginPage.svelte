@@ -15,7 +15,6 @@
   import * as AuthManager from '../domain/auth/authManager'
   import { connect as misskeyConnect, currentUser as misskeyCurrentUser } from '../lib/misskey'
   import * as Backend from '../lib/backend'
-  import { restoreBlueskySession } from '../domain/auth/blueskyAuth'
   import { currentLocale, t } from '../infra/i18n'
   import { proxyAvatarUrl } from '../infra/mediaProxy'
   import { navigateTo } from 'kaguya-network'
@@ -112,6 +111,7 @@
         storedAccounts.map(async (account) => {
           if (account.backend === 'bluesky' && account.blueskyDid) {
             try {
+              const { restoreBlueskySession } = await import('../domain/auth/blueskyAuth')
               const session = await restoreBlueskySession(account.blueskyDid)
               if (!session) return { account, ok: false }
               const Bluesky = await Backend.loadAdapter('bluesky')
