@@ -9,7 +9,9 @@ import { normalizeOrigin } from '../../infra/urlUtils'
 import * as storage from '../../infra/storage'
 import { authState } from './appState'
 import { login } from './authService'
-import * as openidClient from 'openid-client'
+// openid-client (with jose and oauth4webapi) is only for the OAuth2 sign-in
+// itself; load it when that starts, not on every visit.
+const loadOpenId = () => import('openid-client')
 
 function getScopeForMode(mode: PermissionMode): string {
   return getPermissionsForMode(mode)
@@ -27,6 +29,7 @@ function makeProxiedFetch(): typeof fetch {
 }
 
 export async function startOAuth2(opts: { origin: string; mode?: PermissionMode }): Promise<Result<void, LoginError>> {
+  const openidClient = await loadOpenId()
   const mode = opts.mode ?? 'Standard'
   const normalized = normalizeOrigin(opts.origin)
   try {
@@ -71,6 +74,7 @@ export async function startOAuth2(opts: { origin: string; mode?: PermissionMode 
 }
 
 export async function checkOAuth2(): Promise<Result<void, LoginError>> {
+  const openidClient = await loadOpenId()
   const codeVerifier = storage.get(storage.keyOAuth2CodeVerifier)
   const expectedState = storage.get(storage.keyOAuth2State)
   const origin = storage.get(storage.keyOAuth2Origin)

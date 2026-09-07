@@ -112,7 +112,8 @@ export default defineConfig({
           if (id.includes('node_modules')) {
             // Per-backend vendors, so they load with the lazy adapter that
             // needs them and not on every visit.
-            if (/mazemaze-api-bluesky|@atproto|oauth4webapi|openid-client|\/jose\/|\/zod\//.test(id)) return 'vendor-bluesky'
+            if (/oauth4webapi|openid-client|\/jose\//.test(id)) return 'vendor-oauth' // Misskey OAuth2 + atproto OAuth share these
+            if (/mazemaze-api-bluesky|@atproto|\/zod\//.test(id)) return 'vendor-bluesky'
             if (id.includes('mazemaze-api-mastodon')) return 'vendor-mastodon'
             if (id.includes('mazemaze-api-hackerspub')) return 'vendor-hackerspub'
             if (id.includes('svelte')) return 'vendor-svelte'
