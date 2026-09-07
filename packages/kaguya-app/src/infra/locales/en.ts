@@ -53,6 +53,8 @@ export const en: Record<keyof typeof ja, string> = {
   'compose.alt_placeholder': 'Describe the picture (for people who cannot see it). Left blank on hackers.pub, one is written for you',
   'compose.alt_required': 'Could not describe the picture. Add a description and send again',
   'compose.visibility': 'Visibility',
+  'compose.language': 'Language',
+  'compose.language_auto': 'Auto ({lang})',
   'compose.visibility_public': 'Public',
   'compose.visibility_home': 'Home only',
   'compose.visibility_followers': 'Followers only',

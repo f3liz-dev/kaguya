@@ -1800,7 +1800,8 @@ textarea:focus {
   border-color: var(--primary);
 }
 
-.visibility-selector select {
+.visibility-selector select,
+.language-selector select {
   padding: 0.4rem var(--space-8) 0.4rem 0.8rem;
   font-size: 0.85rem;
   border: 1px solid var(--border);
@@ -1812,12 +1813,14 @@ textarea:focus {
   margin-bottom: 0;
 }
 
-.visibility-selector select:hover {
+.visibility-selector select:hover,
+.language-selector select:hover {
   border-color: var(--primary);
   color: var(--primary-text);
 }
 
-.visibility-selector select:focus {
+.visibility-selector select:focus,
+.language-selector select:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 2px var(--primary-focus);
 }

@@ -12,6 +12,7 @@
   import { currentLocale, t } from '../infra/i18n'
   import { svelteSignal } from './svelteSignal.svelte'
   import { Composer } from './postFormStore.svelte'
+  import { detectLanguage } from '../infra/langDetect'
 
   type Props = {
     placeholder?: string
@@ -28,6 +29,17 @@
   $effect(() => composer.cleanup)
 
   const isBluesky = $derived(clientR.value?.backend === 'bluesky')
+  // Mastodon and hackers.pub keep a language on each post; Misskey has no such field.
+  const hasLanguage = $derived(clientR.value?.backend === 'mastodon' || clientR.value?.backend === 'hackerspub')
+
+  // What the guess would send if you leave the picker on "auto".
+  const detected = $derived(detectLanguage(composer.text) ?? 'en')
+  const LANGUAGES = ['ja', 'en', 'ko', 'zh', 'de', 'fr', 'es', 'pt', 'ru'] as const
+  const languageName = $derived.by(() => {
+    localeR.value
+    const names = new Intl.DisplayNames([localeR.value], { type: 'language' })
+    return (code: string) => names.of(code) ?? code
+  })
 
   const visibilityIcons: Record<string, string> = {
     public: 'tabler:world',
@@ -52,6 +64,7 @@
     visibilityPublic: t('compose.visibility_public'),
     visibilityHome: t('compose.visibility_home'),
     visibilityFollowers: t('compose.visibility_followers'),
+    language: t('compose.language'),
     sending: t('compose.sending'),
     submit: t('compose.submit'),
   }))
@@ -166,6 +179,23 @@
         >
           <iconify-icon icon="tabler:photo-plus"></iconify-icon>
         </button>
+
+        {#if hasLanguage}
+          <div class="language-selector">
+            <select
+              value={composer.language}
+              onchange={(e) => { composer.language = (e.currentTarget as HTMLSelectElement).value }}
+              disabled={composer.isPosting}
+              title={L.language}
+              aria-label={L.language}
+            >
+              <option value="">{t('compose.language_auto', { lang: languageName(detected) })}</option>
+              {#each LANGUAGES as code (code)}
+                <option value={code}>{languageName(code)}</option>
+              {/each}
+            </select>
+          </div>
+        {/if}
 
         {#if !isBluesky}
           <div class="visibility-selector">

@@ -27,6 +27,8 @@ export class Composer {
   text = $state('')
   isPosting = $state(false)
   visibility = $state<Visibility>(defaultNoteVisibility.peek())
+  /** BCP 47 primary subtag; '' means "guess from the text" (see langDetect). */
+  language = $state('')
   cw = $state('')
   showCw = $state(false)
   showVisibilityMenu = $state(false)
@@ -125,7 +127,7 @@ export class Composer {
       const cwOpt = this.showCw && this.cw ? this.cw : undefined
       const replyId = this.replyTo?.id
 
-      const language = detectLanguage(this.text)
+      const language = this.language || detectLanguage(this.text)
       let fileIds: string[] | undefined
       let alts: string[] | undefined
       if (this.attachedFiles.length > 0) {

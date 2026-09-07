@@ -51,6 +51,8 @@ export const ja = {
   'compose.alt_placeholder': '画像の説明(見えない人のために)。hackers.pub では空なら自動で作ります',
   'compose.alt_required': '画像の説明を作れませんでした。書いてから送ってください',
   'compose.visibility': '公開範囲',
+  'compose.language': '言語',
+  'compose.language_auto': '自動 ({lang})',
   'compose.visibility_public': 'パブリック',
   'compose.visibility_home': 'ホームのみ',
   'compose.visibility_followers': 'フォロワー限定',

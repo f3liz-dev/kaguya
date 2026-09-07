@@ -53,6 +53,8 @@ export const ko: Record<keyof typeof ja, string> = {
   'compose.alt_placeholder': '그림 설명(보지 못하는 사람을 위해). hackers.pub에서는 비워두면 자동으로 써 드려요',
   'compose.alt_required': '그림 설명을 만들지 못했어요. 적고 나서 다시 보내 주세요',
   'compose.visibility': '공개 범위',
+  'compose.language': '언어',
+  'compose.language_auto': '자동 ({lang})',
   'compose.visibility_public': '공개',
   'compose.visibility_home': '홈에만',
   'compose.visibility_followers': '팔로워 한정',
