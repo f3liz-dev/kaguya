@@ -161,6 +161,31 @@
 
     return () => callDone()
   })
+
+  // After you reply, fetch the replies again so yours is in the list. Some
+  // servers (hackers.pub) take a moment to list a fresh reply, so look once
+  // more a little later if the first look shows nothing new.
+  function reloadReplies() {
+    if (state.type !== 'Loaded') return
+    const currentClient = client.peek()
+    if (!currentClient) return
+    const noteId = state.note.id
+    const before = state.replies?.length ?? 0
+    const fetchOnce = async () => {
+      const result = await Backend.noteChildren(currentClient, noteId)
+      if (!result.ok || state.type !== 'Loaded' || state.note.id !== noteId) return before
+      const replies = decodeManyFromJson(result.value)
+      state = { ...state, replies }
+      return replies.length
+    }
+    void (async () => {
+      const n = await fetchOnce()
+      if (n <= before) {
+        await new Promise((r) => setTimeout(r, 1500))
+        await fetchOnce()
+      }
+    })()
+  }
 </script>
 
 <Layout>
@@ -238,7 +263,7 @@
         <Note note={state.note} />
       </div>
 
-      <PostForm replyTo={state.note} placeholder={L.replyPlaceholder} />
+      <PostForm replyTo={state.note} placeholder={L.replyPlaceholder} onPosted={reloadReplies} />
 
       {#if state.replies === null}
         <div class="timeline-skeleton">
