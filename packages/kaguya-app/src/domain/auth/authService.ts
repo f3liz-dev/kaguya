@@ -19,9 +19,6 @@ import { normalizeOrigin, hostnameFromOrigin } from '../../infra/urlUtils'
 import { asObj, getString } from '../../infra/jsonUtils'
 import { addPreconnectForInstance, prefetchCommonDomains } from '../../infra/networkOptimizer'
 import * as Misskey from '../../lib/misskey'
-import * as Mastodon from '../../lib/mastodon'
-import * as Bluesky from '../../lib/bluesky'
-import * as Hackerspub from '../../lib/hackerspub'
 import * as Backend from '../../lib/backend'
 import type { BackendClient } from '../../lib/backend'
 import type { BackendType } from '../account/account'
@@ -61,6 +58,7 @@ export async function login(opts: { origin: string; token: string; backend?: Bac
     let backendUserId: string
 
     if (backendType === 'mastodon') {
+      const Mastodon = await Backend.loadAdapter('mastodon')
       const mastoClient = Mastodon.connect(normalized, opts.token)
       bc = { backend: 'mastodon', client: mastoClient }
       const userResult = await Mastodon.Accounts.verifyCredentials(mastoClient)
@@ -74,6 +72,7 @@ export async function login(opts: { origin: string; token: string; backend?: Bac
       userAvatarUrl = getString(userObj ?? {}, 'avatar') ?? ''
       backendUserId = getString(userObj ?? {}, 'id') ?? ''
     } else if (backendType === 'hackerspub') {
+      const Hackerspub = await Backend.loadAdapter('hackerspub')
       const hpClient = Hackerspub.connect(normalized, opts.token)
       bc = { backend: 'hackerspub', client: hpClient }
       const userResult = await Hackerspub.currentUser(hpClient)
@@ -161,6 +160,7 @@ export async function loginBluesky(opts: { session: OAuthSession }): Promise<Res
   authState.value = 'LoggingIn'
 
   try {
+    const Bluesky = await Backend.loadAdapter('bluesky')
     const bskyClient = Bluesky.connectFromSession(opts.session)
     const bc: BackendClient = { backend: 'bluesky', client: bskyClient }
 
@@ -375,7 +375,7 @@ export async function switchAccount(accountId: string): Promise<Result<void, Log
   teardownStores()
 
   const bc: BackendClient = account.backend === 'mastodon'
-    ? { backend: 'mastodon', client: Mastodon.connect(account.origin, account.token) }
+    ? { backend: 'mastodon', client: (await Backend.loadAdapter('mastodon')).connect(account.origin, account.token) }
     : { backend: 'misskey', client: Misskey.connect(account.origin, account.token) }
 
   storage.set(storage.keyOrigin, account.origin)

@@ -14,10 +14,8 @@
   import type { BackendType } from '../domain/account/account'
   import * as AuthManager from '../domain/auth/authManager'
   import { connect as misskeyConnect, currentUser as misskeyCurrentUser } from '../lib/misskey'
-  import * as Mastodon from '../lib/mastodon'
+  import * as Backend from '../lib/backend'
   import { restoreBlueskySession } from '../domain/auth/blueskyAuth'
-  import * as Bluesky from '../lib/bluesky'
-  import * as Hackerspub from '../lib/hackerspub'
   import { currentLocale, t } from '../infra/i18n'
   import { proxyAvatarUrl } from '../infra/mediaProxy'
   import { navigateTo } from 'kaguya-network'
@@ -116,6 +114,7 @@
             try {
               const session = await restoreBlueskySession(account.blueskyDid)
               if (!session) return { account, ok: false }
+              const Bluesky = await Backend.loadAdapter('bluesky')
               const bskyClient = Bluesky.connectFromSession(session)
               const result = await Bluesky.Accounts.getProfile(bskyClient)
               return { account, ok: result.ok }
@@ -124,11 +123,13 @@
             }
           }
           if (account.backend === 'mastodon') {
+            const Mastodon = await Backend.loadAdapter('mastodon')
             const c = Mastodon.connect(account.origin, account.token)
             const result = await Mastodon.Accounts.verifyCredentials(c)
             return { account, ok: result.ok }
           }
           if (account.backend === 'hackerspub') {
+            const Hackerspub = await Backend.loadAdapter('hackerspub')
             const c = Hackerspub.connect(account.origin, account.token)
             const result = await Hackerspub.currentUser(c)
             return { account, ok: result.ok }

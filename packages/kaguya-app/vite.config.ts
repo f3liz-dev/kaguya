@@ -110,6 +110,11 @@ export default defineConfig({
       output: {
         manualChunks: (id) => {
           if (id.includes('node_modules')) {
+            // Per-backend vendors, so they load with the lazy adapter that
+            // needs them and not on every visit.
+            if (/mazemaze-api-bluesky|@atproto|oauth4webapi|openid-client|\/jose\/|\/zod\//.test(id)) return 'vendor-bluesky'
+            if (id.includes('mazemaze-api-mastodon')) return 'vendor-mastodon'
+            if (id.includes('mazemaze-api-hackerspub')) return 'vendor-hackerspub'
             if (id.includes('svelte')) return 'vendor-svelte'
             if (id.includes('unocss')) return 'vendor-unocss'
             if (id.includes('@picocss')) return 'vendor-pico'

@@ -13,7 +13,6 @@ import { cacheHomeTimeline } from './timelineStore'
 import type { Account } from '../account/account'
 import * as Backend from '../../lib/backend'
 import * as Misskey from '../../lib/misskey'
-import * as Mastodon from '../../lib/mastodon'
 
 const PREFETCH_LIMIT = 20
 const MIN_REWARM_MS = 60_000          // don't re-warm one account more than once a minute
@@ -39,10 +38,10 @@ function idle(): Promise<void> {
   return new Promise(resolve => whenIdle(() => resolve()))
 }
 
-function connectFor(account: Account): Backend.BackendClient | undefined {
+async function connectFor(account: Account): Promise<Backend.BackendClient | undefined> {
   switch (account.backend) {
     case 'misskey': return { backend: 'misskey', client: Misskey.connect(account.origin, account.token) }
-    case 'mastodon': return { backend: 'mastodon', client: Mastodon.connect(account.origin, account.token) }
+    case 'mastodon': return { backend: 'mastodon', client: (await Backend.loadAdapter('mastodon')).connect(account.origin, account.token) }
     // Bluesky needs an async OAuth session restore — no cheap throwaway client,
     // so it's left out of background warming and just fetches fresh on switch.
     case 'bluesky': return undefined
@@ -52,7 +51,7 @@ function connectFor(account: Account): Backend.BackendClient | undefined {
 async function warmAccount(account: Account): Promise<void> {
   const now = Date.now()
   if (now - (lastWarmed.get(account.id) ?? 0) < MIN_REWARM_MS) return
-  const bc = connectFor(account)
+  const bc = await connectFor(account)
   if (!bc) return
   lastWarmed.set(account.id, now)
   try {

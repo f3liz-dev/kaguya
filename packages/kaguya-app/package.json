@@ -6,9 +6,9 @@
   "license": "MPL-2.0",
   "scripts": {
     "sync-backends": "node scripts/sync-backends.mjs",
-    "dev": "node scripts/sync-backends.mjs && vite",
-    "build:vite": "node scripts/sync-backends.mjs && vite build",
-    "build": "node scripts/sync-backends.mjs && vite build",
+    "dev": "node scripts/sync-backends.mjs && node scripts/gen-icons.mjs && vite",
+    "build:vite": "node scripts/sync-backends.mjs && node scripts/gen-icons.mjs && vite build",
+    "build": "node scripts/sync-backends.mjs && node scripts/gen-icons.mjs && vite build",
     "clean": "rm -rf dist",
     "preview": "vite preview",
     "senga": "node senga/run.mjs",

@@ -3,16 +3,17 @@
 // Bluesky adapter. Data calls go through @f3liz/mazemaze-api-bluesky (the
 // generated XRPC client); only what is genuinely atproto-specific stays on
 // @atproto:
-//   - OAuth / DPoP / session — @atproto/oauth-client-browser, via the Agent.
+//   - OAuth / DPoP / session — @atproto/oauth-client-browser.
 //     The session's `fetchHandler` (DPoP-signed, auth'd, PDS auto-proxies the
 //     app.bsky.* reads) is injected as the mazemaze transport.
-//   - RichText.detectFacets — resolves @mentions in post text to DIDs.
+//   - facets (mentions/links/tags) are built in ./blueskyFacets, mentions
+//     resolved through com.atproto.identity.resolveHandle on the PDS.
 //   - com.atproto.server.getSession — the PDS-local fallback when the AppView
-//     is briefly unavailable (no mazemaze equivalent).
+//     is briefly unavailable, called through the same fetchFn.
 // Writes are real atproto records (createRecord / deleteRecord) built here and
 // sent through mazemaze; this is the ONLY place that knows the lexicon shapes.
 
-import { Agent, RichText } from '@atproto/api'
+import { detectFacets } from './blueskyFacets'
 import type { OAuthSession } from '@atproto/oauth-client-browser'
 import * as B from '@f3liz/mazemaze-api-bluesky'
 import { measureApiCall } from '../infra/perfMonitor'
@@ -22,7 +23,6 @@ import type { Result } from '../infra/result'
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type BlueskyClient = {
-  agent: Agent
   b: B.BlueskyClient
   did: string
   handle: string
@@ -79,11 +79,10 @@ function makeDpopFetch(session: OAuthSession): B.FetchFn {
 }
 
 export function connectFromSession(session: OAuthSession): BlueskyClient {
-  const agent = new Agent(session)
   // Empty service: the generated sends build relative `/xrpc/...` URLs and the
   // session's fetchHandler resolves them against the real PDS audience.
   const b = B.connect('', { fetch: makeDpopFetch(session) })
-  return { agent, b, did: session.did, handle: '', cursors: new Map() }
+  return { b, did: session.did, handle: '', cursors: new Map() }
 }
 
 export function close(_client: BlueskyClient): void {
@@ -150,8 +149,8 @@ export const Accounts = {
         return await B.getProfile(client.b, { actor: client.did })
       } catch (e) {
         console.warn('getProfile failed, falling back to getSession:', e)
-        const res = await client.agent.com.atproto.server.getSession()
-        return { did: res.data.did, handle: res.data.handle, avatar: '' }
+        const res = asObj(await client.b.fetchFn('GET', '/xrpc/com.atproto.server.getSession', undefined))
+        return { did: res?.['did'] ?? client.did, handle: res?.['handle'] ?? '', avatar: '' }
       }
     }),
 
@@ -191,13 +190,16 @@ export const Posts = {
     },
   ): Promise<Result<unknown, string>> =>
     wrap('bsky/post', async () => {
-      // Facet detection still needs an Agent to resolve mentions to DIDs.
-      const rt = new RichText({ text: text ?? '' })
-      await rt.detectFacets(client.agent)
+      const body = text ?? ''
+      const facets = await detectFacets(body, async (handle) => {
+        const r = asObj(await client.b.fetchFn('GET', `/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(handle)}`, undefined))
+        const did = r?.['did']
+        return typeof did === 'string' ? did : undefined
+      })
       const record: Record<string, unknown> = {
         $type: 'app.bsky.feed.post',
-        text: rt.text,
-        facets: rt.facets,
+        text: body,
+        facets,
         createdAt: nowIso(),
       }
       if (opts?.replyTo) {

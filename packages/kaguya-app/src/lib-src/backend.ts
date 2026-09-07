@@ -7,13 +7,49 @@
 import type { MisskeyClient, Subscription as MisskeySubscription } from './misskey'
 import * as Misskey from './misskey'
 import type { MastodonClient, MastodonSubscription } from './mastodon'
-import * as Mastodon from './mastodon'
+import type * as MastodonNS from './mastodon'
 import type { BlueskyClient, BlueskySubscription } from './bluesky'
-import * as Bluesky from './bluesky'
+import type * as BlueskyNS from './bluesky'
 import type { HackersPubClient } from './hackerspub'
-import * as Hackerspub from './hackerspub'
+import type * as HackerspubNS from './hackerspub'
 import type { Result } from '../infra/result'
 import { ok, err } from '../infra/result'
+
+// ─── Lazy adapters ───────────────────────────────────────────────────────────
+//
+// Misskey is the common case and stays in the main bundle. The other three
+// are loaded when an account of that kind connects, so a Misskey reader never
+// downloads the Bluesky SDK or the Mastodon client. A BackendClient of a kind
+// can only exist after loadAdapter(kind) resolved, so the sync accessors
+// below are safe wherever a client is in hand.
+
+type MastodonMod = typeof import('./mastodon')
+type BlueskyMod = typeof import('./bluesky')
+type HackerspubMod = typeof import('./hackerspub')
+
+let mastodonMod: MastodonMod | undefined
+let blueskyMod: BlueskyMod | undefined
+let hackerspubMod: HackerspubMod | undefined
+
+export function loadAdapter(kind: 'mastodon'): Promise<MastodonMod>
+export function loadAdapter(kind: 'bluesky'): Promise<BlueskyMod>
+export function loadAdapter(kind: 'hackerspub'): Promise<HackerspubMod>
+export function loadAdapter(kind: 'misskey'): Promise<typeof Misskey>
+export async function loadAdapter(kind: BackendType): Promise<unknown> {
+  switch (kind) {
+    case 'misskey': return Misskey
+    case 'mastodon': return (mastodonMod ??= await import('./mastodon'))
+    case 'bluesky': return (blueskyMod ??= await import('./bluesky'))
+    case 'hackerspub': return (hackerspubMod ??= await import('./hackerspub'))
+  }
+}
+
+function notLoaded(kind: string): never {
+  throw new Error(`${kind} adapter used before loadAdapter('${kind}')`)
+}
+const Mastodon = (): MastodonMod => mastodonMod ?? notLoaded('mastodon')
+const Bluesky = (): BlueskyMod => blueskyMod ?? notLoaded('bluesky')
+const Hackerspub = (): HackerspubMod => hackerspubMod ?? notLoaded('hackerspub')
 
 // ─── Core types ──────────────────────────────────────────────────────────────
 
@@ -54,16 +90,16 @@ function toMisskeyTimeline(t: TimelineType): Misskey.TimelineType | undefined {
   return t as Misskey.TimelineType
 }
 
-function toMastodonTimeline(t: TimelineType): Mastodon.TimelineType | undefined {
+function toMastodonTimeline(t: TimelineType): MastodonNS.TimelineType | undefined {
   if (typeof t === 'string') {
     if (t === 'hybrid') return undefined
-    return t as Mastodon.TimelineType
+    return t as MastodonNS.TimelineType
   }
   if (t.kind === 'list') return { kind: 'list', id: t.id }
   return undefined
 }
 
-function toBlueskyTimeline(t: TimelineType): Bluesky.TimelineType | undefined {
+function toBlueskyTimeline(t: TimelineType): BlueskyNS.TimelineType | undefined {
   if (typeof t === 'string') {
     if (t === 'home') return 'home'
     // Bluesky doesn't have local/global/hybrid timelines
@@ -74,7 +110,7 @@ function toBlueskyTimeline(t: TimelineType): Bluesky.TimelineType | undefined {
   return undefined
 }
 
-function toHackerspubTimeline(t: TimelineType): Hackerspub.TimelineType | undefined {
+function toHackerspubTimeline(t: TimelineType): HackerspubNS.TimelineType | undefined {
   if (typeof t === 'string') {
     if (t === 'home') return 'home'
     if (t === 'local' || t === 'global') return 'global' // both map to the public feed
@@ -83,7 +119,7 @@ function toHackerspubTimeline(t: TimelineType): Hackerspub.TimelineType | undefi
   return undefined
 }
 
-function toHackerspubVisibility(v: Visibility): Hackerspub.Visibility {
+function toHackerspubVisibility(v: Visibility): HackerspubNS.Visibility {
   switch (v) {
     case 'public': return 'PUBLIC'
     case 'home': return 'PUBLIC'
@@ -107,7 +143,7 @@ function toMisskeyVisibility(v: Visibility): Misskey.Visibility {
   }
 }
 
-function toMastodonVisibility(v: Visibility): Mastodon.Visibility {
+function toMastodonVisibility(v: Visibility): MastodonNS.Visibility {
   switch (v) {
     case 'public': return 'public'
     case 'home': return 'unlisted'
@@ -126,25 +162,25 @@ export function origin(bc: BackendClient): string {
     case 'misskey': return Misskey.origin(bc.client)
     case 'mastodon': return bc.client.origin
     case 'bluesky': return 'https://bsky.social'
-    case 'hackerspub': return Hackerspub.origin(bc.client)
+    case 'hackerspub': return Hackerspub().origin(bc.client)
   }
 }
 
 export function close(bc: BackendClient): void {
   switch (bc.backend) {
     case 'misskey': Misskey.close(bc.client); break
-    case 'mastodon': Mastodon.close(bc.client); break
-    case 'bluesky': Bluesky.close(bc.client); break
-    case 'hackerspub': Hackerspub.close(bc.client); break
+    case 'mastodon': Mastodon().close(bc.client); break
+    case 'bluesky': Bluesky().close(bc.client); break
+    case 'hackerspub': Hackerspub().close(bc.client); break
   }
 }
 
 export function currentUser(bc: BackendClient): Promise<Result<unknown>> {
   switch (bc.backend) {
     case 'misskey': return Misskey.currentUser(bc.client)
-    case 'mastodon': return Mastodon.Accounts.verifyCredentials(bc.client)
-    case 'bluesky': return Bluesky.Accounts.getProfile(bc.client)
-    case 'hackerspub': return Hackerspub.currentUser(bc.client)
+    case 'mastodon': return Mastodon().Accounts.verifyCredentials(bc.client)
+    case 'bluesky': return Bluesky().Accounts.getProfile(bc.client)
+    case 'hackerspub': return Hackerspub().currentUser(bc.client)
   }
 }
 
@@ -166,17 +202,17 @@ export async function fetchTimeline(
     case 'mastodon': {
       const mt = toMastodonTimeline(type)
       if (!mt) return err('Timeline type not supported on Mastodon')
-      return Mastodon.Timelines.fetch(bc.client, mt, limit, sinceId, untilId)
+      return Mastodon().Timelines.fetch(bc.client, mt, limit, sinceId, untilId)
     }
     case 'bluesky': {
       const bt = toBlueskyTimeline(type)
       if (!bt) return err('Timeline type not supported on Bluesky')
-      return Bluesky.Timelines.fetch(bc.client, bt, limit, untilId)
+      return Bluesky().Timelines.fetch(bc.client, bt, limit, untilId)
     }
     case 'hackerspub': {
       const ht = toHackerspubTimeline(type)
       if (!ht) return err('Timeline type not supported on hackers.pub')
-      return Hackerspub.Timelines.fetch(bc.client, ht, limit, sinceId, untilId)
+      return Hackerspub().Timelines.fetch(bc.client, ht, limit, sinceId, untilId)
     }
   }
 }
@@ -208,9 +244,9 @@ export async function createNote(
       })
     case 'mastodon':
       if (opts?.renoteId && !text) {
-        return Mastodon.Statuses.reblog(bc.client, opts.renoteId)
+        return Mastodon().Statuses.reblog(bc.client, opts.renoteId)
       }
-      return Mastodon.Statuses.create(bc.client, text, {
+      return Mastodon().Statuses.create(bc.client, text, {
         visibility: opts?.visibility ? toMastodonVisibility(opts.visibility) : undefined,
         spoilerText: opts?.cw,
         inReplyToId: opts?.replyId,
@@ -221,12 +257,12 @@ export async function createNote(
       if (opts?.renoteId && !text) {
         // Pure repost — need the CID. The renoteId is the AT URI.
         // We need to fetch the post to get the CID for repost.
-        const postResult = await Bluesky.Posts.show(bc.client, opts.renoteId)
+        const postResult = await Bluesky().Posts.show(bc.client, opts.renoteId)
         if (!postResult.ok) return postResult
         const post = postResult.value as Record<string, unknown>
         const cid = (post as { cid?: string }).cid
         if (!cid) return err('Missing CID for repost')
-        return Bluesky.Posts.repost(bc.client, opts.renoteId, cid)
+        return Bluesky().Posts.repost(bc.client, opts.renoteId, cid)
       }
       // Build embed for images if fileIds provided
       let embed: unknown | undefined
@@ -243,7 +279,7 @@ export async function createNote(
       // Build reply reference if replyId provided
       let replyTo: { uri: string; cid: string } | undefined
       if (opts?.replyId) {
-        const parentResult = await Bluesky.Posts.show(bc.client, opts.replyId)
+        const parentResult = await Bluesky().Posts.show(bc.client, opts.replyId)
         if (parentResult.ok) {
           const parent = parentResult.value as { uri?: string; cid?: string }
           if (parent.uri && parent.cid) {
@@ -251,10 +287,10 @@ export async function createNote(
           }
         }
       }
-      return Bluesky.Posts.create(bc.client, text, { replyTo, embed, language: opts?.language })
+      return Bluesky().Posts.create(bc.client, text, { replyTo, embed, language: opts?.language })
     }
     case 'hackerspub':
-      return Hackerspub.Notes.create(bc.client, text, {
+      return Hackerspub().Notes.create(bc.client, text, {
         visibility: opts?.visibility ? toHackerspubVisibility(opts.visibility) : undefined,
         replyId: opts?.replyId,
         renoteId: opts?.renoteId,
@@ -268,9 +304,9 @@ export async function createNote(
 export function showNote(bc: BackendClient, noteId: string): Promise<Result<unknown>> {
   switch (bc.backend) {
     case 'misskey': return Misskey.Notes.show(bc.client, noteId)
-    case 'mastodon': return Mastodon.Statuses.show(bc.client, noteId)
-    case 'bluesky': return Bluesky.Posts.show(bc.client, noteId)
-    case 'hackerspub': return Hackerspub.Notes.show(bc.client, noteId)
+    case 'mastodon': return Mastodon().Statuses.show(bc.client, noteId)
+    case 'bluesky': return Bluesky().Posts.show(bc.client, noteId)
+    case 'hackerspub': return Hackerspub().Notes.show(bc.client, noteId)
   }
 }
 
@@ -286,12 +322,12 @@ export async function noteContext(
       // ({ ancestors, descendants }), not an array. Callers (and the
       // shared note decoder) expect an array of notes, so unwrap it here:
       // the conversation is the ancestor chain leading up to this note.
-      const r = await Mastodon.Statuses.context(bc.client, noteId)
+      const r = await Mastodon().Statuses.context(bc.client, noteId)
       if (!r.ok) return r
       return ok((r.value as { ancestors?: unknown[] }).ancestors ?? [])
     }
-    case 'bluesky': return Bluesky.Posts.getThread(bc.client, noteId)
-    case 'hackerspub': return Hackerspub.Notes.context(bc.client, noteId)
+    case 'bluesky': return Bluesky().Posts.getThread(bc.client, noteId)
+    case 'hackerspub': return Hackerspub().Notes.context(bc.client, noteId)
   }
 }
 
@@ -305,12 +341,12 @@ export async function noteChildren(
     case 'mastodon': {
       // Same /context shape as noteContext; here we take the descendants
       // (the replies hanging below this note).
-      const r = await Mastodon.Statuses.context(bc.client, noteId)
+      const r = await Mastodon().Statuses.context(bc.client, noteId)
       if (!r.ok) return r
       return ok((r.value as { descendants?: unknown[] }).descendants ?? [])
     }
-    case 'bluesky': return Bluesky.Posts.getThread(bc.client, noteId)
-    case 'hackerspub': return Hackerspub.Notes.children(bc.client, noteId)
+    case 'bluesky': return Bluesky().Posts.getThread(bc.client, noteId)
+    case 'hackerspub': return Hackerspub().Notes.children(bc.client, noteId)
   }
 }
 
@@ -323,51 +359,51 @@ export async function react(
 ): Promise<Result<unknown>> {
   switch (bc.backend) {
     case 'misskey': return Misskey.Notes.react(bc.client, noteId, reaction ?? '❤️')
-    case 'mastodon': return Mastodon.Statuses.favourite(bc.client, noteId)
+    case 'mastodon': return Mastodon().Statuses.favourite(bc.client, noteId)
     case 'bluesky': {
       // Need CID for like. Fetch the post to get it.
-      const postResult = await Bluesky.Posts.show(bc.client, noteId)
+      const postResult = await Bluesky().Posts.show(bc.client, noteId)
       if (!postResult.ok) return postResult
       const post = postResult.value as { cid?: string }
       if (!post.cid) return err('Missing CID for like')
-      return Bluesky.Posts.like(bc.client, noteId, post.cid)
+      return Bluesky().Posts.like(bc.client, noteId, post.cid)
     }
-    case 'hackerspub': return Hackerspub.Notes.react(bc.client, noteId, reaction)
+    case 'hackerspub': return Hackerspub().Notes.react(bc.client, noteId, reaction)
   }
 }
 
 export async function unreact(bc: BackendClient, noteId: string): Promise<Result<unknown>> {
   switch (bc.backend) {
     case 'misskey': return Misskey.Notes.unreact(bc.client, noteId)
-    case 'mastodon': return Mastodon.Statuses.unfavourite(bc.client, noteId)
+    case 'mastodon': return Mastodon().Statuses.unfavourite(bc.client, noteId)
     case 'bluesky': {
       // Need the like URI to delete it. Fetch the post viewer state.
-      const postResult = await Bluesky.Posts.show(bc.client, noteId)
+      const postResult = await Bluesky().Posts.show(bc.client, noteId)
       if (!postResult.ok) return postResult
       const post = postResult.value as { viewer?: { like?: string } }
       const likeUri = post.viewer?.like
       if (!likeUri) return err('No like to remove')
-      return Bluesky.Posts.unlike(bc.client, likeUri)
+      return Bluesky().Posts.unlike(bc.client, likeUri)
     }
-    case 'hackerspub': return Hackerspub.Notes.unreact(bc.client, noteId)
+    case 'hackerspub': return Hackerspub().Notes.unreact(bc.client, noteId)
   }
 }
 
 export function favourite(bc: BackendClient, noteId: string): Promise<Result<unknown>> {
   switch (bc.backend) {
     case 'misskey': return Misskey.Favorites.create(bc.client, noteId)
-    case 'mastodon': return Mastodon.Statuses.bookmark(bc.client, noteId)
+    case 'mastodon': return Mastodon().Statuses.bookmark(bc.client, noteId)
     case 'bluesky': return react(bc, noteId) // Bluesky has no separate bookmark
-    case 'hackerspub': return Hackerspub.Notes.bookmark(bc.client, noteId)
+    case 'hackerspub': return Hackerspub().Notes.bookmark(bc.client, noteId)
   }
 }
 
 export function unfavourite(bc: BackendClient, noteId: string): Promise<Result<unknown>> {
   switch (bc.backend) {
     case 'misskey': return Misskey.Favorites.delete(bc.client, noteId)
-    case 'mastodon': return Mastodon.Statuses.unbookmark(bc.client, noteId)
+    case 'mastodon': return Mastodon().Statuses.unbookmark(bc.client, noteId)
     case 'bluesky': return unreact(bc, noteId)
-    case 'hackerspub': return Hackerspub.Notes.unbookmark(bc.client, noteId)
+    case 'hackerspub': return Hackerspub().Notes.unbookmark(bc.client, noteId)
   }
 }
 
@@ -380,9 +416,9 @@ export function pollVote(
 ): Promise<Result<unknown>> {
   switch (bc.backend) {
     case 'misskey': return Misskey.Notes.pollVote(bc.client, noteOrPollId, choice)
-    case 'mastodon': return Mastodon.Statuses.pollVote(bc.client, noteOrPollId, [choice])
+    case 'mastodon': return Mastodon().Statuses.pollVote(bc.client, noteOrPollId, [choice])
     case 'bluesky': return Promise.resolve(err('Polls are not supported on Bluesky'))
-    case 'hackerspub': return Hackerspub.Notes.vote(bc.client, noteOrPollId, choice)
+    case 'hackerspub': return Hackerspub().Notes.vote(bc.client, noteOrPollId, choice)
   }
 }
 
@@ -391,26 +427,26 @@ export function pollVote(
 export function follow(bc: BackendClient, userId: string): Promise<Result<unknown>> {
   switch (bc.backend) {
     case 'misskey': return Misskey.Following.follow(bc.client, userId)
-    case 'mastodon': return Mastodon.Accounts.follow(bc.client, userId)
-    case 'bluesky': return Bluesky.Follows.follow(bc.client, userId)
-    case 'hackerspub': return Hackerspub.Following.follow(bc.client, userId)
+    case 'mastodon': return Mastodon().Accounts.follow(bc.client, userId)
+    case 'bluesky': return Bluesky().Follows.follow(bc.client, userId)
+    case 'hackerspub': return Hackerspub().Following.follow(bc.client, userId)
   }
 }
 
 export async function unfollow(bc: BackendClient, userId: string): Promise<Result<unknown>> {
   switch (bc.backend) {
     case 'misskey': return Misskey.Following.unfollow(bc.client, userId)
-    case 'mastodon': return Mastodon.Accounts.unfollow(bc.client, userId)
+    case 'mastodon': return Mastodon().Accounts.unfollow(bc.client, userId)
     case 'bluesky': {
       // Need the follow URI to delete it. Fetch profile to get viewer state.
-      const profileResult = await Bluesky.Accounts.show(bc.client, userId)
+      const profileResult = await Bluesky().Accounts.show(bc.client, userId)
       if (!profileResult.ok) return profileResult
       const profile = profileResult.value as { viewer?: { following?: string } }
       const followUri = profile.viewer?.following
       if (!followUri) return err('Not following this user')
-      return Bluesky.Follows.unfollow(bc.client, followUri)
+      return Bluesky().Follows.unfollow(bc.client, followUri)
     }
-    case 'hackerspub': return Hackerspub.Following.unfollow(bc.client, userId)
+    case 'hackerspub': return Hackerspub().Following.unfollow(bc.client, userId)
   }
 }
 
@@ -423,19 +459,19 @@ export function showUser(
   switch (bc.backend) {
     case 'misskey': return Misskey.Users.show(bc.client, opts)
     case 'mastodon': {
-      if (opts.userId) return Mastodon.Accounts.show(bc.client, opts.userId)
+      if (opts.userId) return Mastodon().Accounts.show(bc.client, opts.userId)
       if (opts.username) {
         const acct = opts.host ? `${opts.username}@${opts.host}` : opts.username
-        return Mastodon.Accounts.lookup(bc.client, acct)
+        return Mastodon().Accounts.lookup(bc.client, acct)
       }
       return Promise.resolve(err('Mastodon requires userId or username for account lookup'))
     }
     case 'bluesky': {
       const actor = opts.userId ?? (opts.username ? (opts.host ? `${opts.username}.${opts.host}` : opts.username) : undefined)
       if (!actor) return Promise.resolve(err('Bluesky requires userId or username for account lookup'))
-      return Bluesky.Accounts.show(bc.client, actor)
+      return Bluesky().Accounts.show(bc.client, actor)
     }
-    case 'hackerspub': return Hackerspub.Users.show(bc.client, opts)
+    case 'hackerspub': return Hackerspub().Users.show(bc.client, opts)
   }
 }
 
@@ -448,20 +484,20 @@ export function userNotes(
     case 'misskey':
       return Misskey.Users.notes(bc.client, userId, opts)
     case 'mastodon':
-      return Mastodon.Accounts.statuses(bc.client, userId, {
+      return Mastodon().Accounts.statuses(bc.client, userId, {
         limit: opts?.limit,
         excludeReplies: !opts?.withReplies,
         sinceId: opts?.sinceId,
         maxId: opts?.untilId,
       })
     case 'bluesky':
-      return Bluesky.Accounts.getAuthorFeed(bc.client, userId, {
+      return Bluesky().Accounts.getAuthorFeed(bc.client, userId, {
         limit: opts?.limit,
         cursor: opts?.untilId,
         filter: opts?.withReplies ? undefined : 'posts_no_replies',
       })
     case 'hackerspub':
-      return Hackerspub.Users.notes(bc.client, userId, { limit: opts?.limit, untilId: opts?.untilId })
+      return Hackerspub().Users.notes(bc.client, userId, { limit: opts?.limit, untilId: opts?.untilId })
   }
 }
 
@@ -470,7 +506,7 @@ export function userNotes(
 export function listEmojis(bc: BackendClient): Promise<Result<unknown[]>> {
   switch (bc.backend) {
     case 'misskey': return Misskey.Emojis.list(bc.client)
-    case 'mastodon': return Mastodon.CustomEmojis.list(bc.client) as Promise<Result<unknown[]>>
+    case 'mastodon': return Mastodon().CustomEmojis.list(bc.client) as Promise<Result<unknown[]>>
     case 'bluesky': return Promise.resolve(ok([])) // Bluesky has no custom emojis
     case 'hackerspub': return Promise.resolve(ok([])) // reactions are picked, not listed
   }
@@ -481,8 +517,8 @@ export function listEmojis(bc: BackendClient): Promise<Result<unknown[]>> {
 export function listLists(bc: BackendClient): Promise<Result<unknown[]>> {
   switch (bc.backend) {
     case 'misskey': return Misskey.CustomTimelines.lists(bc.client)
-    case 'mastodon': return Mastodon.Lists.list(bc.client) as Promise<Result<unknown[]>>
-    case 'bluesky': return Bluesky.Lists.list(bc.client)
+    case 'mastodon': return Mastodon().Lists.list(bc.client) as Promise<Result<unknown[]>>
+    case 'bluesky': return Bluesky().Lists.list(bc.client)
     case 'hackerspub': return Promise.resolve(ok([]))
   }
 }
@@ -509,7 +545,7 @@ export function listFeeds(bc: BackendClient): Promise<Result<unknown[]>> {
   switch (bc.backend) {
     case 'misskey': return Promise.resolve(ok([]))
     case 'mastodon': return Promise.resolve(ok([]))
-    case 'bluesky': return Bluesky.Feeds.listSaved(bc.client) as Promise<Result<unknown[]>>
+    case 'bluesky': return Bluesky().Feeds.listSaved(bc.client) as Promise<Result<unknown[]>>
     case 'hackerspub': return Promise.resolve(ok([]))
   }
 }
@@ -524,7 +560,7 @@ export function describeMedia(
   context?: string,
 ): Promise<Result<string>> {
   switch (bc.backend) {
-    case 'hackerspub': return Hackerspub.Media.describe(bc.client, mediaId, language, context)
+    case 'hackerspub': return Hackerspub().Media.describe(bc.client, mediaId, language, context)
     default: return Promise.resolve(err('This backend cannot describe images'))
   }
 }
@@ -536,9 +572,9 @@ export function uploadMedia(
 ): Promise<Result<string>> {
   switch (bc.backend) {
     case 'misskey': return Misskey.Drive.upload(bc.client, file, opts?.sensitive, opts?.onProgress as never)
-    case 'mastodon': return Mastodon.Media.upload(bc.client, file, opts?.alt || undefined)
-    case 'bluesky': return Bluesky.Media.upload(bc.client, file)
-    case 'hackerspub': return Hackerspub.Media.upload(bc.client, file)
+    case 'mastodon': return Mastodon().Media.upload(bc.client, file, opts?.alt || undefined)
+    case 'bluesky': return Bluesky().Media.upload(bc.client, file)
+    case 'hackerspub': return Hackerspub().Media.upload(bc.client, file)
   }
 }
 
@@ -550,9 +586,9 @@ export function fetchNotifications(
 ): Promise<Result<unknown>> {
   switch (bc.backend) {
     case 'misskey': return Misskey.request(bc.client, 'i/notifications', { limit: opts?.limit ?? 30 })
-    case 'mastodon': return Mastodon.Notifications.list(bc.client, { limit: opts?.limit ?? 30 })
-    case 'bluesky': return Bluesky.Notifications.list(bc.client, { limit: opts?.limit ?? 30 })
-    case 'hackerspub': return Hackerspub.Notifications.list(bc.client, { limit: opts?.limit ?? 30 })
+    case 'mastodon': return Mastodon().Notifications.list(bc.client, { limit: opts?.limit ?? 30 })
+    case 'bluesky': return Bluesky().Notifications.list(bc.client, { limit: opts?.limit ?? 30 })
+    case 'hackerspub': return Hackerspub().Notifications.list(bc.client, { limit: opts?.limit ?? 30 })
   }
 }
 
@@ -573,7 +609,7 @@ export function streamTimeline(
     case 'mastodon': {
       const mt = toMastodonTimeline(type)
       if (!mt) return undefined
-      const sub = Mastodon.Stream.timeline(bc.client, mt, onNote)
+      const sub = Mastodon().Stream.timeline(bc.client, mt, onNote)
       return { backend: 'mastodon', sub }
     }
     case 'bluesky':
@@ -593,7 +629,7 @@ export function streamNotifications(
       return { backend: 'misskey', sub }
     }
     case 'mastodon': {
-      const sub = Mastodon.Stream.notifications(bc.client, onNotification)
+      const sub = Mastodon().Stream.notifications(bc.client, onNotification)
       return { backend: 'mastodon', sub }
     }
     case 'bluesky':
@@ -614,8 +650,8 @@ export function unsubscribe(sub: BackendSubscription): void {
 export function closeStream(bc: BackendClient): void {
   switch (bc.backend) {
     case 'misskey': Misskey.Stream.close(bc.client); break
-    case 'mastodon': Mastodon.Stream.close(bc.client); break
-    case 'bluesky': Bluesky.Stream.close(bc.client); break
+    case 'mastodon': Mastodon().Stream.close(bc.client); break
+    case 'bluesky': Bluesky().Stream.close(bc.client); break
     case 'hackerspub': break
   }
 }
@@ -643,8 +679,8 @@ export function onStreamDisconnected(bc: BackendClient, callback: () => void): v
 export function instanceMeta(bc: BackendClient): Promise<Result<unknown>> {
   switch (bc.backend) {
     case 'misskey': return Misskey.Meta.get(bc.client)
-    case 'mastodon': return Mastodon.Instance.get(bc.client)
-    case 'bluesky': return Bluesky.Server.describeServer(bc.client)
+    case 'mastodon': return Mastodon().Instance.get(bc.client)
+    case 'bluesky': return Bluesky().Server.describeServer(bc.client)
     case 'hackerspub': return Promise.resolve(ok({}))
   }
 }

@@ -12,3 +12,6 @@ wrangler.log
 
 # senga (線画) の出力。焼き直せるものは置いていかない
 senga/out/
+
+# written by scripts/gen-icons.mjs at build time
+src/icons.data.json
