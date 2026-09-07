@@ -326,7 +326,9 @@ export const Media = {
     language: string,
     context?: string,
   ): Promise<Result<string>> => {
-    const r = await call('hp/generatedAltText', 'node', HP.generatedAltText(client.hp, { mediumId, language, context }))
+    // node(id:) takes the Relay global id; uploads hand back the plain uuid.
+    const globalId = /^[0-9a-f-]{36}$/i.test(mediumId) ? btoa(`Medium:${mediumId}`) : mediumId
+    const r = await call('hp/generatedAltText', 'node', HP.generatedAltText(client.hp, { mediumId: globalId, language, context }))
     if (!r.ok) return r
     const node = r.value && typeof r.value === 'object' ? (r.value as Record<string, unknown>) : undefined
     const alt = node?.['generatedAltText']
@@ -396,10 +398,17 @@ async function uploadDirect(client: HackersPubClient, file: File | Blob): Promis
     const finishRes = await call('hp/finishMediumUpload', 'finishMediumUpload', HP.finishMediumUpload(client.hp, { uploadId }))
     if (!finishRes.ok) return finishRes
     const medium = asRecord(asRecord(finishRes.value)?.['medium'])
-    const id = medium?.['id']
-    if (typeof id !== 'string') return err('hackers.pub: upload finished without a medium id')
+    const id = mediumUuid(medium)
+    if (!id) return err('hackers.pub: upload finished without a medium id')
     return ok(id)
   }
+}
+
+// createNote's media[].mediumId is the plain UUID, not the Relay global id
+// ("Medium:<uuid>" base64) that `id` carries. Both mutations return `uuid`.
+function mediumUuid(medium: Record<string, unknown> | undefined): string | undefined {
+  const uuid = medium?.['uuid']
+  return typeof uuid === 'string' && uuid.length > 0 ? uuid : undefined
 }
 
 function readAsDataUrl(file: Blob): Promise<string> {
@@ -417,8 +426,8 @@ async function uploadAsDataUrl(client: HackersPubClient, file: File | Blob): Pro
   const res = await call('hp/createMedium', 'createMedium', HP.createMedium(client.hp, { url }))
   if (!res.ok) return res
   const medium = asRecord(asRecord(res.value)?.['medium'])
-  const id = medium?.['id']
-  if (typeof id !== 'string') {
+  const id = mediumUuid(medium)
+  if (!id) {
     const path = asRecord(res.value)?.['inputPath']
     return err(path ? `hackers.pub: createMedium rejected ${String(path)}` : 'hackers.pub: createMedium returned no medium')
   }
