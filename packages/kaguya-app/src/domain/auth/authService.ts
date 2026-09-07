@@ -366,9 +366,9 @@ export async function switchAccount(accountId: string): Promise<Result<void, Log
     return result
   }
 
-  // Misskey / Mastodon: connect synchronously from the stored token. No network
-  // in the critical path, so the switch is instant rather than waiting on a
-  // verify round-trip.
+  // Misskey / Mastodon / hackers.pub: connect synchronously from the stored
+  // token. No network in the critical path, so the switch is instant rather
+  // than waiting on a verify round-trip.
   isSwitchingAccount.value = true
   const prevClient = client.value
   if (prevClient) Backend.close(prevClient)
@@ -376,14 +376,18 @@ export async function switchAccount(accountId: string): Promise<Result<void, Log
 
   const bc: BackendClient = account.backend === 'mastodon'
     ? { backend: 'mastodon', client: (await Backend.loadAdapter('mastodon')).connect(account.origin, account.token) }
-    : { backend: 'misskey', client: Misskey.connect(account.origin, account.token) }
+    : account.backend === 'hackerspub'
+      ? { backend: 'hackerspub', client: (await Backend.loadAdapter('hackerspub')).connect(account.origin, account.token) }
+      : { backend: 'misskey', client: Misskey.connect(account.origin, account.token) }
 
   storage.set(storage.keyOrigin, account.origin)
   storage.set(storage.keyToken, account.token)
   storage.set(storage.keyActiveAccountId, accountId)
   storage.set(storage.keyPermissionMode, permissionModeToString(account.permissionMode))
 
-  const backendUserId = account.backend === 'misskey' ? account.misskeyUserId : account.mastodonAccountId
+  const backendUserId = account.backend === 'misskey' ? account.misskeyUserId
+    : account.backend === 'hackerspub' ? account.hackerspubActorId
+    : account.mastodonAccountId
 
   // Flip everything the UI reads in a single batch: the header identity, the
   // client the timeline fetches with, and the seeded home page all change
@@ -405,7 +409,7 @@ export async function switchAccount(accountId: string): Promise<Result<void, Log
 
   // Catch the view up in the background, each write guarded against a later
   // switch. Misskey rides fetchSupplementaryData (home + lists + notifications +
-  // finalize); Mastodon refreshes home and the display name directly.
+  // finalize); Mastodon and hackers.pub refresh home and the display name directly.
   if (bc.backend === 'misskey') {
     void fetchSupplementaryData(bc.client, accountId, account.origin)
   } else {
